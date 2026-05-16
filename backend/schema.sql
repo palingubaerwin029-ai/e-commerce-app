@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS orders (
     user_id INT NOT NULL,
     total_amount DECIMAL(10, 2) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',
+    delivery_lat DECIMAL(10, 8),
+    delivery_lng DECIMAL(11, 8),
+    delivery_address TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

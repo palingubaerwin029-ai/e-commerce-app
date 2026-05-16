@@ -1,0 +1,536 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { fetchOrderById } from '../services/api';
+import MapView, { Marker } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
+import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
+import { wp, hp, ms, fs, sw } from '../utils/responsive';
+
+const STEPS = [
+  { key: 'pending', label: 'Order Placed', icon: 'receipt-outline', desc: 'Your order has been received' },
+  { key: 'processing', label: 'Processing', icon: 'cog-outline', desc: 'Your order is being prepared' },
+  { key: 'shipped', label: 'Shipped', icon: 'airplane-outline', desc: 'Your order is on the way' },
+  { key: 'delivered', label: 'Delivered', icon: 'checkmark-circle-outline', desc: 'Your order has been delivered' },
+];
+
+const STATUS_COLORS = {
+  pending: '#F59E0B',
+  processing: '#3B82F6',
+  shipped: '#8B5CF6',
+  delivered: '#10B981',
+  cancelled: '#EF4444',
+};
+
+export default function TrackOrderScreen() {
+  const { id } = useLocalSearchParams();
+  const router = useRouter();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadOrder();
+  }, [id]);
+
+  const loadOrder = async () => {
+    try {
+      const data = await fetchOrderById(id);
+      setOrder(data);
+    } catch (e) {
+      console.error('Load order error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCurrentStepIndex = () => {
+    if (!order) return 0;
+    if (order.status === 'cancelled') return -1;
+    const idx = STEPS.findIndex((s) => s.key === order.status);
+    return idx >= 0 ? idx : 0;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={ACCENT} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!order) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="alert-circle-outline" size={ms(48)} color="#ddd" />
+        </View>
+        <Text style={styles.emptyTitle}>Order not found</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+          <Text style={styles.retryText}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  const currentStep = getCurrentStepIndex();
+  const isCancelled = order.status === 'cancelled';
+  const hasLocation = order.delivery_lat && order.delivery_lng;
+  const statusColor = STATUS_COLORS[order.status] || '#888';
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={ms(20)} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Track Order</Text>
+        <View style={{ width: sw(38) }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Order Header Card */}
+        <View style={styles.card}>
+          <View style={styles.orderHeaderRow}>
+            <View>
+              <Text style={styles.orderId}>Order #{order.id}</Text>
+              <Text style={styles.orderDate}>
+                {new Date(order.created_at).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+              <Ionicons name={isCancelled ? 'close-circle' : 'ellipse'} size={ms(8)} color={statusColor} />
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Tracking Timeline */}
+        <Text style={styles.sectionTitle}>Tracking Status</Text>
+        <View style={styles.card}>
+          {isCancelled ? (
+            <View style={styles.cancelledContainer}>
+              <View style={styles.cancelledIcon}>
+                <Ionicons name="close-circle" size={ms(40)} color="#EF4444" />
+              </View>
+              <Text style={styles.cancelledText}>Order Cancelled</Text>
+              <Text style={styles.cancelledDesc}>This order has been cancelled</Text>
+            </View>
+          ) : (
+            STEPS.map((step, index) => {
+              const isCompleted = index <= currentStep;
+              const isCurrent = index === currentStep;
+              const isLast = index === STEPS.length - 1;
+              const dotColor = isCompleted ? STATUS_COLORS[step.key] : '#E5E7EB';
+
+              return (
+                <View key={step.key} style={styles.stepRow}>
+                  {/* Vertical line + dot */}
+                  <View style={styles.stepIndicatorColumn}>
+                    <View
+                      style={[
+                        styles.stepDot,
+                        { backgroundColor: dotColor },
+                        isCurrent && styles.stepDotActive,
+                      ]}
+                    >
+                      {isCompleted && (
+                        <Ionicons
+                          name={index < currentStep ? 'checkmark' : step.icon}
+                          size={isCurrent ? ms(14) : ms(10)}
+                          color="#fff"
+                        />
+                      )}
+                    </View>
+                    {!isLast && (
+                      <View
+                        style={[
+                          styles.stepLine,
+                          {
+                            backgroundColor:
+                              index < currentStep ? STATUS_COLORS[STEPS[index + 1].key] : '#F0F0F0',
+                          },
+                        ]}
+                      />
+                    )}
+                  </View>
+
+                  {/* Step label */}
+                  <View style={[styles.stepContent, !isLast && { paddingBottom: hp(2.5) }]}>
+                    <Text
+                      style={[
+                        styles.stepLabel,
+                        { color: isCompleted ? '#1A1A2E' : '#BDBDBD' },
+                        isCurrent && styles.stepLabelActive,
+                      ]}
+                    >
+                      {step.label}
+                    </Text>
+                    {isCurrent && (
+                      <Text style={styles.stepDescription}>{step.desc}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* Delivery Map */}
+        {hasLocation && (
+          <>
+            <Text style={styles.sectionTitle}>Delivery Location</Text>
+            <View style={styles.mapCard}>
+              <MapView
+                style={styles.map}
+                initialRegion={{
+                  latitude: parseFloat(order.delivery_lat),
+                  longitude: parseFloat(order.delivery_lng),
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+              >
+                <Marker
+                  coordinate={{
+                    latitude: parseFloat(order.delivery_lat),
+                    longitude: parseFloat(order.delivery_lng),
+                  }}
+                  title="Delivery Location"
+                  description={order.delivery_address || ''}
+                  pinColor={ACCENT}
+                />
+              </MapView>
+              {order.delivery_address && (
+                <View style={styles.addressRow}>
+                  <View style={styles.addressIcon}>
+                    <Ionicons name="location" size={ms(14)} color={ACCENT} />
+                  </View>
+                  <Text style={styles.addressText} numberOfLines={2}>
+                    {order.delivery_address}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* Order Items */}
+        <Text style={styles.sectionTitle}>Order Items</Text>
+        <View style={styles.card}>
+          {order.items?.map((item, index) => (
+            <View key={item.id || index} style={styles.itemRow}>
+              <View style={styles.itemQtyBadge}>
+                <Text style={styles.itemQtyText}>{item.quantity}x</Text>
+              </View>
+              <Text style={styles.itemName} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={styles.itemPrice}>${parseFloat(item.price).toFixed(2)}</Text>
+            </View>
+          ))}
+          <View style={styles.divider} />
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>${parseFloat(order.total_amount).toFixed(2)}</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(1.5),
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  backButton: {
+    width: sw(38),
+    height: sw(38),
+    borderRadius: sw(12),
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: fs(18),
+    fontWeight: '800',
+    color: '#1A1A2E',
+  },
+
+  scrollContent: {
+    padding: wp(5),
+    paddingBottom: hp(5),
+  },
+
+  // Empty / Error
+  emptyIcon: {
+    width: sw(90),
+    height: sw(90),
+    borderRadius: sw(45),
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: hp(2),
+  },
+  emptyTitle: {
+    fontSize: fs(16),
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: hp(2),
+  },
+  retryButton: {
+    backgroundColor: ACCENT,
+    paddingHorizontal: sw(28),
+    paddingVertical: sw(12),
+    borderRadius: sw(14),
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: fs(14),
+    fontWeight: '700',
+  },
+
+  // Section
+  sectionTitle: {
+    fontSize: fs(16),
+    fontWeight: '800',
+    color: '#1A1A2E',
+    marginBottom: hp(1.5),
+    marginTop: hp(1),
+  },
+
+  // Card
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: sw(18),
+    padding: sw(18),
+    marginBottom: hp(2),
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: sw(12),
+    shadowOffset: { width: 0, height: sw(4) },
+    elevation: 2,
+  },
+
+  // Order Header
+  orderHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  orderId: {
+    fontSize: fs(18),
+    fontWeight: '800',
+    color: '#1A1A2E',
+  },
+  orderDate: {
+    fontSize: fs(12),
+    color: '#999',
+    marginTop: sw(3),
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
+    borderRadius: sw(8),
+    gap: sw(5),
+  },
+  statusText: {
+    fontSize: fs(11),
+    fontWeight: '700',
+  },
+
+  // Timeline
+  cancelledContainer: {
+    alignItems: 'center',
+    paddingVertical: hp(3),
+  },
+  cancelledIcon: {
+    width: sw(70),
+    height: sw(70),
+    borderRadius: sw(35),
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: hp(1.5),
+  },
+  cancelledText: {
+    color: '#EF4444',
+    fontSize: fs(16),
+    fontWeight: '800',
+  },
+  cancelledDesc: {
+    color: '#999',
+    fontSize: fs(13),
+    marginTop: sw(4),
+  },
+
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  stepIndicatorColumn: {
+    alignItems: 'center',
+    width: sw(32),
+    marginRight: sw(14),
+  },
+  stepDot: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepDotActive: {
+    width: sw(34),
+    height: sw(34),
+    borderRadius: sw(17),
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: sw(6),
+    shadowOffset: { width: 0, height: sw(2) },
+    elevation: 4,
+  },
+  stepLine: {
+    width: sw(3),
+    flex: 1,
+    minHeight: hp(2.5),
+    borderRadius: sw(2),
+  },
+  stepContent: {
+    flex: 1,
+    paddingTop: sw(4),
+  },
+  stepLabel: {
+    fontSize: fs(14),
+    fontWeight: '500',
+  },
+  stepLabelActive: {
+    fontWeight: '800',
+    fontSize: fs(15),
+  },
+  stepDescription: {
+    fontSize: fs(12),
+    color: '#999',
+    marginTop: sw(3),
+  },
+
+  // Map
+  mapCard: {
+    backgroundColor: '#fff',
+    borderRadius: sw(18),
+    overflow: 'hidden',
+    marginBottom: hp(2),
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: sw(12),
+    shadowOffset: { width: 0, height: sw(4) },
+    elevation: 2,
+  },
+  map: {
+    width: '100%',
+    height: hp(24),
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: sw(16),
+  },
+  addressIcon: {
+    width: sw(30),
+    height: sw(30),
+    borderRadius: sw(10),
+    backgroundColor: ACCENT_LIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: sw(10),
+  },
+  addressText: {
+    fontSize: fs(13),
+    flex: 1,
+    lineHeight: fs(20),
+    color: '#333',
+    fontWeight: '500',
+  },
+
+  // Items
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: hp(1.2),
+  },
+  itemQtyBadge: {
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    borderRadius: sw(6),
+    marginRight: sw(10),
+  },
+  itemQtyText: {
+    fontSize: fs(11),
+    fontWeight: '700',
+    color: '#666',
+  },
+  itemName: {
+    flex: 1,
+    marginRight: sw(10),
+    fontSize: fs(13),
+    color: '#333',
+    fontWeight: '500',
+  },
+  itemPrice: {
+    fontSize: fs(13),
+    fontWeight: '700',
+    color: '#1A1A2E',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F5F5F5',
+    marginVertical: hp(1.5),
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: fs(14),
+    fontWeight: '700',
+    color: '#1A1A2E',
+  },
+  totalValue: {
+    fontSize: fs(20),
+    fontWeight: '900',
+    color: ACCENT,
+  },
+});
