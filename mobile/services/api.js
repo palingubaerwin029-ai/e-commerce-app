@@ -95,8 +95,8 @@ export const createProduct = async (productData) => {
   return data;
 };
 
-export const createOrder = async (items, total_amount, deliveryLocation = null) => {
-  const body = { items, total_amount };
+export const createOrder = async (items, total_amount, deliveryLocation = null, payment_method = 'Cash on Delivery') => {
+  const body = { items, total_amount, payment_method };
   if (deliveryLocation) {
     body.delivery_lat = deliveryLocation.latitude;
     body.delivery_lng = deliveryLocation.longitude;

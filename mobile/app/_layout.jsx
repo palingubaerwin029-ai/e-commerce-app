@@ -7,10 +7,20 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import * as NavigationBar from 'expo-navigation-bar';
+import { Platform } from 'react-native';
+
 import { useColorScheme } from '../hooks/use-color-scheme';
 import { CartProvider } from '../context/CartContext';
 import { ToastProvider } from '../context/ToastContext';
 import { AuthProvider, AuthContext } from '../context/AuthContext';
+
+// Set navigation bar to transparent on Android
+if (Platform.OS === 'android') {
+  NavigationBar.setPositionAsync('absolute');
+  NavigationBar.setBackgroundColorAsync('#ffffff00');
+  NavigationBar.setButtonStyleAsync('dark');
+}
 
 export const unstable_settings = {
   anchor: '(tabs)',

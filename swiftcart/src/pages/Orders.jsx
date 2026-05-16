@@ -68,6 +68,7 @@ const Orders = () => {
                 <th>Order ID</th>
                 <th>Date</th>
                 <th>Customer</th>
+                <th>Payment</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Update Status</th>
@@ -79,10 +80,13 @@ const Orders = () => {
                   <td><span style={{ fontWeight: 700, color: '#475569' }}>#{order.id}</span></td>
                   <td>{new Date(order.created_at).toLocaleDateString()}</td>
                   <td>
-                    <div style={{ fontSize: '0.9rem' }}>{order.user_email}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{order.phone || 'No phone'}</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{order.user_name || 'Customer'}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{order.user_email}</div>
                   </td>
-                  <td><span style={{ fontWeight: 700 }}>${parseFloat(order.total_amount).toFixed(2)}</span></td>
+                  <td>
+                    <span style={{ fontSize: '0.875rem', color: '#475569' }}>{order.payment_method || 'Cash on Delivery'}</span>
+                  </td>
+                  <td><span style={{ fontWeight: 700, color: 'var(--primary)' }}>${parseFloat(order.total_amount).toFixed(2)}</span></td>
                   <td>
                     <div className={`badge ${getStatusClass(order.status)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                       {getStatusIcon(order.status)}

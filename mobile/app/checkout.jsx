@@ -74,13 +74,22 @@ export default function CheckoutScreen() {
     } catch { setAddress(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`); }
   };
 
+  const [paymentMethod, setPaymentMethod] = useState('Cash on Delivery');
+
+  const paymentMethods = [
+    { id: 'Cash on Delivery', icon: 'cash-outline', label: 'Cash on Delivery' },
+    { id: 'GCash', icon: 'wallet-outline', label: 'GCash' },
+    { id: 'PayMaya', icon: 'card-outline', label: 'PayMaya' },
+    { id: 'Credit/Debit Card', icon: 'card-outline', label: 'Credit/Debit Card' },
+  ];
+
   const handlePlaceOrder = async () => {
     if (!user) { showToast('Please log in', 'error'); router.push('/(auth)/login'); return; }
     if (!deliveryLocation) { showToast('Please set delivery location', 'error'); return; }
     setLoading(true);
     try {
       const items = cartItems.map(item => ({ id: item.id, quantity: item.quantity, price: item.price }));
-      await createOrder(items, finalTotal, { latitude: deliveryLocation.latitude, longitude: deliveryLocation.longitude, address });
+      await createOrder(items, finalTotal, { latitude: deliveryLocation.latitude, longitude: deliveryLocation.longitude, address }, paymentMethod);
       if (appliedCoupon) await markCouponUsed(appliedCoupon.couponId);
       clearCart();
       showToast('Order placed!', 'success');
@@ -188,6 +197,23 @@ export default function CheckoutScreen() {
               ))}
             </View>
           )}
+        </View>
+
+        <Text style={styles.sectionTitle}>Payment Method</Text>
+        <View style={styles.card}>
+          {paymentMethods.map((method) => (
+            <TouchableOpacity 
+              key={method.id} 
+              style={[styles.paymentOption, paymentMethod === method.id && styles.paymentOptionSelected]} 
+              onPress={() => setPaymentMethod(method.id)}
+            >
+              <View style={styles.paymentIconContainer}>
+                <Ionicons name={method.icon} size={ms(20)} color={paymentMethod === method.id ? ACCENT : '#666'} />
+              </View>
+              <Text style={[styles.paymentLabel, paymentMethod === method.id && styles.paymentLabelSelected]}>{method.label}</Text>
+              {paymentMethod === method.id && <Ionicons name="checkmark-circle" size={ms(20)} color={ACCENT} />}
+            </TouchableOpacity>
+          ))}
         </View>
 
         <Text style={styles.sectionTitle}>Delivery Location</Text>
@@ -299,4 +325,12 @@ const styles = StyleSheet.create({
   changeLocationBtn: { alignItems: 'center', paddingVertical: hp(1) },
   changeLocationText: { color: ACCENT, fontSize: fs(12), fontWeight: '500' },
   mapHint: { fontSize: fs(11), textAlign: 'center', marginTop: hp(0.5), color: '#999' },
+  paymentOption: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: hp(1.5),
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
+  },
+  paymentOptionSelected: { borderBottomColor: 'transparent' },
+  paymentIconContainer: { width: sw(40), height: sw(40), borderRadius: sw(10), backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center', marginRight: sw(12) },
+  paymentLabel: { flex: 1, fontSize: fs(14), color: '#333', fontWeight: '500' },
+  paymentLabelSelected: { color: ACCENT, fontWeight: '700' },
 });

@@ -15,7 +15,22 @@ if (!JWT_SECRET) {
     console.error('ERROR: JWT_SECRET is not defined in environment variables.');
 }
 
-app.use(cors());
+const allowedOrigins = [
+    'http://localhost:5173', // Web Dashboard
+    'http://127.0.0.1:5173',
+    // Mobile IPs will vary, so for local dev we keep it flexible but restricted
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+        }
+        return callback(null, true);
+    }
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -81,7 +96,7 @@ app.post('/api/auth/signup', async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const salt = await bcrypt.genSalt(10);
+        const salt = await bcrypt.genSalt(12);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const [result] = await db.query(
@@ -224,7 +239,7 @@ app.post('/api/products', authenticateToken, requireAdmin, async (req, res) => {
 
 // Create an order
 app.post('/api/orders', authenticateToken, async (req, res) => {
-    const { items, total_amount, delivery_lat, delivery_lng, delivery_address } = req.body;
+    const { items, total_amount, delivery_lat, delivery_lng, delivery_address, payment_method } = req.body;
     
     if (!items || items.length === 0) {
         return res.status(400).json({ message: 'No items in order' });
@@ -235,8 +250,8 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         await connection.beginTransaction();
 
         const [orderResult] = await connection.query(
-            'INSERT INTO orders (user_id, total_amount, status, delivery_lat, delivery_lng, delivery_address) VALUES (?, ?, ?, ?, ?, ?)',
-            [req.user.id, total_amount, 'pending', delivery_lat || null, delivery_lng || null, delivery_address || null]
+            'INSERT INTO orders (user_id, total_amount, status, delivery_lat, delivery_lng, delivery_address, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [req.user.id, total_amount, 'pending', delivery_lat || null, delivery_lng || null, delivery_address || null, payment_method || 'Cash on Delivery']
         );
         
         const orderId = orderResult.insertId;

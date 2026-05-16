@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, TextInput } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, TextInput, Image } from 'react-native';
 import { router } from 'expo-router';
 import { AuthContext } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -27,8 +27,8 @@ export default function LoginScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="bag-handle" size={ms(42)} color={ACCENT} />
+          <View style={[styles.iconCircle, { backgroundColor: 'transparent' }]}>
+            <Image source={require('../../assets/logo.png')} style={{ width: sw(120), height: sw(120) }} resizeMode="contain" />
           </View>
           <Text style={styles.heroTitle}>Welcome{'\n'}Back</Text>
           <Text style={styles.heroSubtitle}>Sign in to continue your shopping experience</Text>

@@ -16,6 +16,8 @@ import EditProduct from './pages/EditProduct'
 import Orders from './pages/Orders'
 import Login from './pages/Login'
 
+import logo from './assets/logo.png'
+
 const Sidebar = () => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
@@ -23,8 +25,8 @@ const Sidebar = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-logo">
-        <ShoppingBag size={32} />
-        <span>SwiftCart</span>
+        <img src={logo} alt="SwiftCart" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
+        Swift<span>Cart</span>
       </div>
       <nav className="sidebar-nav">
         <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
