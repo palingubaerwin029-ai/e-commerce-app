@@ -51,7 +51,7 @@ export default function CartScreen() {
                 </View>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-                  <Text style={styles.itemPrice}>${parseFloat(item.price).toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>₱{parseFloat(item.price).toFixed(2)}</Text>
                   <View style={styles.qtyRow}>
                     <TouchableOpacity
                       style={styles.qtyButton}
@@ -80,7 +80,7 @@ export default function CartScreen() {
           <View style={styles.bottomBar}>
             <View>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalPrice}>${total.toFixed(2)}</Text>
+              <Text style={styles.totalPrice}>₱{total.toFixed(2)}</Text>
             </View>
             <TouchableOpacity style={styles.checkoutButton} onPress={() => router.push('/checkout')} activeOpacity={0.8}>
               <Text style={styles.checkoutText}>Checkout</Text>

@@ -16,6 +16,7 @@ import { fetchProductById } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw, SCREEN_WIDTH } from '../utils/responsive';
+import { triggerHaptic } from '../utils/haptics';
 
 export default function DetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -70,11 +71,11 @@ export default function DetailsScreen() {
         <View style={styles.imageSection}>
           <Image source={{ uri: product.image }} style={styles.image} resizeMode="contain" />
           <SafeAreaView style={styles.topBar}>
-            <TouchableOpacity style={styles.topButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.topButton} onPress={() => { triggerHaptic('selection'); router.back(); }}>
               <Ionicons name="chevron-back" size={ms(20)} color="#333" />
             </TouchableOpacity>
             <Text style={styles.topTitle}>Product Details</Text>
-            <TouchableOpacity style={styles.topButton}>
+            <TouchableOpacity style={styles.topButton} onPress={() => triggerHaptic('light')}>
               <Ionicons name="heart-outline" size={ms(20)} color="#333" />
             </TouchableOpacity>
           </SafeAreaView>
@@ -95,7 +96,7 @@ export default function DetailsScreen() {
           <Text style={styles.description} numberOfLines={showFullDesc ? undefined : 3}>
             {product.description}
           </Text>
-          <TouchableOpacity onPress={() => setShowFullDesc(!showFullDesc)}>
+          <TouchableOpacity onPress={() => { triggerHaptic('selection'); setShowFullDesc(!showFullDesc); }}>
             <Text style={styles.readMore}>{showFullDesc ? 'Show less' : 'Read more'}</Text>
           </TouchableOpacity>
         </View>
@@ -104,11 +105,11 @@ export default function DetailsScreen() {
       <View style={styles.bottomBar}>
         <View>
           <Text style={styles.priceLabel}>Total Price</Text>
-          <Text style={styles.price}>${parseFloat(product.price).toFixed(2)}</Text>
+          <Text style={styles.price}>₱{parseFloat(product.price).toFixed(2)}</Text>
         </View>
         <TouchableOpacity
           style={styles.addToCartButton}
-          onPress={() => { addToCart(product); showToast('Added to cart!'); }}
+          onPress={() => { triggerHaptic('light'); addToCart(product); showToast('Added to cart!'); }}
           activeOpacity={0.8}
         >
           <Ionicons name="cart" size={ms(16)} color="#fff" />

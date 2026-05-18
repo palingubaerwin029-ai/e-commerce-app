@@ -10,11 +10,11 @@ export function useProducts() {
   const [category, setCategory] = useState('');
   const [filter, setFilter] = useState(''); // '', 'newest', 'popular'
 
-  const loadProducts = useCallback(async (search = searchQuery, cat = category, filt = filter) => {
+  const loadProducts = useCallback(async (search = searchQuery, cat = category, filt = filter, force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchProducts(search, cat, filt);
+      const data = await fetchProducts(search, cat, filt, force);
       setProducts(data);
     } catch (err) {
       setError(err.message || 'Failed to fetch products');
@@ -26,12 +26,12 @@ export function useProducts() {
   }, [searchQuery, category, filter]);
 
   useEffect(() => {
-    loadProducts(searchQuery, category, filter);
+    loadProducts(searchQuery, category, filter, false);
   }, [searchQuery, category, filter]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadProducts(searchQuery, category, filter);
+    loadProducts(searchQuery, category, filter, true);
   }, [searchQuery, category, filter, loadProducts]);
 
   return { 

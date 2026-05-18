@@ -14,11 +14,10 @@ import { useColorScheme } from '../hooks/use-color-scheme';
 import { CartProvider } from '../context/CartContext';
 import { ToastProvider } from '../context/ToastContext';
 import { AuthProvider, AuthContext } from '../context/AuthContext';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
-// Set navigation bar to transparent on Android
+// Set navigation bar button style on Android (position and background are handled automatically by edge-to-edge)
 if (Platform.OS === 'android') {
-  NavigationBar.setPositionAsync('absolute');
-  NavigationBar.setBackgroundColorAsync('#ffffff00');
   NavigationBar.setButtonStyleAsync('dark');
 }
 
@@ -30,6 +29,10 @@ function RootLayoutNav() {
   const { user, loading } = useContext(AuthContext);
   const segments = useSegments();
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -61,6 +64,7 @@ function RootLayoutNav() {
         <Stack.Screen name="checkout" />
         <Stack.Screen name="orders" />
         <Stack.Screen name="details" />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style="dark" />

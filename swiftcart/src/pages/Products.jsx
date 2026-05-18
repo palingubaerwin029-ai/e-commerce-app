@@ -133,7 +133,7 @@ const Products = () => {
                             <span style={{ fontWeight: 600 }}>{product.title}</span>
                           </div>
                         </td>
-                        <td><span style={{ fontWeight: 700, color: 'var(--primary)' }}>${parseFloat(product.price).toFixed(2)}</span></td>
+                        <td><span style={{ fontWeight: 700, color: 'var(--primary)' }}>₱{parseFloat(product.price).toFixed(2)}</span></td>
                         <td>{product.stock} units</td>
                         <td>
                           <span className={`badge ${product.stock > 10 ? 'badge-success' : product.stock > 0 ? 'badge-warning' : 'badge-danger'}`}>

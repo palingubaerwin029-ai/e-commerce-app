@@ -18,14 +18,21 @@ if (!JWT_SECRET) {
 const allowedOrigins = [
     'http://localhost:5173', // Web Dashboard
     'http://127.0.0.1:5173',
-    // Mobile IPs will vary, so for local dev we keep it flexible but restricted
+    'http://localhost:8081', // Metro Bundler (Local Web)
+    'http://127.0.0.1:8081',
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like native mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
+        
+        // Match explicit whitelist or standard intranet/localhost origins
+        const isAllowed = allowedOrigins.indexOf(origin) !== -1 ||
+            /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+            
+        if (!isAllowed) {
+            console.warn(`[CORS Blocked] Unauthorized Origin: ${origin}`);
             return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
         }
         return callback(null, true);
@@ -61,6 +68,80 @@ const requireAdmin = (req, res, next) => {
     }
     next();
 };
+
+// --- IN-MEMORY CACHE HELPER ---
+const serverCache = {
+    store: new Map(),
+    get(key) {
+        const item = this.store.get(key);
+        if (!item) return null;
+        if (Date.now() > item.expiry) {
+            this.store.delete(key);
+            return null;
+        }
+        return item.value;
+    },
+    set(key, value, ttlMs = 5 * 60 * 1000) {
+        this.store.set(key, {
+            value,
+            expiry: Date.now() + ttlMs
+        });
+    },
+    delete(key) {
+        this.store.delete(key);
+    },
+    clearPattern(pattern) {
+        let clearedCount = 0;
+        for (const key of this.store.keys()) {
+            if (key.includes(pattern)) {
+                this.store.delete(key);
+                clearedCount++;
+            }
+        }
+        if (clearedCount > 0) {
+            console.log(`[Cache Invalidation] Cleared ${clearedCount} keys matching pattern "${pattern}"`);
+        }
+    },
+    clearAll() {
+        this.store.clear();
+        console.log('[Cache Invalidation] Cleared all server caches');
+    }
+};
+
+// --- CACHE MIDDLEWARE ---
+const cacheMiddleware = (durationSec = 300) => {
+    return (req, res, next) => {
+        // Only cache GET requests
+        if (req.method !== 'GET') {
+            return next();
+        }
+
+        // Cache key includes request URL, query string, and the user ID if authenticated to isolate user contexts
+        const userPart = req.user ? `_user_${req.user.id}` : '';
+        const key = `__express__${req.originalUrl || req.url}${userPart}`;
+        const cachedResponse = serverCache.get(key);
+
+        if (cachedResponse) {
+            console.log(`[Cache HIT] Serving cached response for key: ${key}`);
+            res.setHeader('X-Cache', 'HIT');
+            return res.json(cachedResponse);
+        } else {
+            console.log(`[Cache MISS] Fetching fresh data for key: ${key}`);
+            res.setHeader('X-Cache', 'MISS');
+            
+            // Intercept res.json to store the response in cache on success
+            const originalJson = res.json.bind(res);
+            res.json = (body) => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    serverCache.set(key, body, durationSec * 1000);
+                }
+                return originalJson(body);
+            };
+            next();
+        }
+    };
+};
+
 
 // Multer storage config
 const storage = multer.diskStorage({
@@ -165,7 +246,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // --- PRODUCT ROUTES ---
 
 // Get all products (with optional search, category, and filter)
-app.get('/api/products', async (req, res) => {
+app.get('/api/products', cacheMiddleware(300), async (req, res) => {
     console.log('GET /api/products requested');
     const { search, category, filter } = req.query;
     
@@ -199,8 +280,22 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+// Get all distinct product categories
+app.get('/api/products/categories', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ""'
+        );
+        const categories = rows.map(r => r.category);
+        res.json(categories);
+    } catch (error) {
+        console.error('Get categories error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 // Get product by ID
-app.get('/api/products/:id', async (req, res) => {
+app.get('/api/products/:id', cacheMiddleware(300), async (req, res) => {
     const { id } = req.params;
     try {
         const [rows] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
@@ -228,6 +323,7 @@ app.post('/api/products', authenticateToken, requireAdmin, async (req, res) => {
             'INSERT INTO products (title, price, description, category, image, stock) VALUES (?, ?, ?, ?, ?, ?)',
             [title, price, description || null, category || null, image || null, stock || 100]
         );
+        serverCache.clearPattern('products');
         res.status(201).json({ message: 'Product created successfully', productId: result.insertId });
     } catch (error) {
         console.error('Create product error:', error);
@@ -264,6 +360,22 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         }
 
         await connection.commit();
+        
+        // Create checkout confirmation notification
+        try {
+            await db.query(
+                'INSERT INTO notifications (user_id, title, body, type) VALUES (?, ?, ?, ?)',
+                [
+                    req.user.id,
+                    'Order Placed Successfully! 🎉',
+                    `Thank you for shopping with SwiftCart! Your order #${orderId} has been successfully placed using ${payment_method}. We are preparing your order.`,
+                    'order_status'
+                ]
+            );
+        } catch (notifErr) {
+            console.error('Failed to create order notification:', notifErr);
+        }
+
         res.status(201).json({ message: 'Order created successfully', orderId });
     } catch (error) {
         await connection.rollback();
@@ -363,6 +475,22 @@ app.post('/api/coupons/:id/claim', authenticateToken, async (req, res) => {
 
         await db.query('INSERT INTO user_coupons (user_id, coupon_id) VALUES (?, ?)', [req.user.id, id]);
         await db.query('UPDATE coupons SET uses_count = uses_count + 1 WHERE id = ?', [id]);
+        
+        // Add database notification log
+        try {
+            await db.query(
+                'INSERT INTO notifications (user_id, title, body, type) VALUES (?, ?, ?, ?)',
+                [
+                    req.user.id,
+                    'Coupon Claimed Successfully! 🎟️',
+                    `Congratulations! Coupon code "${coupon[0].code}" has been saved to your profile. Apply it at checkout to get a ${coupon[0].discount_percent}% discount!`,
+                    'promotion'
+                ]
+            );
+        } catch (notifErr) {
+            console.error('Failed to create coupon claim notification:', notifErr);
+        }
+
         res.json({ message: 'Coupon claimed!' });
     } catch (error) {
         console.error('Claim coupon error:', error);
@@ -427,6 +555,72 @@ app.post('/api/coupons/use', authenticateToken, async (req, res) => {
     }
 });
 
+// --- NOTIFICATION ROUTES ---
+
+// Get all notifications for logged-in user
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+            [req.user.id]
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Get notifications error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
+    try {
+        await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = ?',
+            [req.user.id]
+        );
+        res.json({ message: 'All notifications marked as read' });
+    } catch (error) {
+        console.error('Mark all notifications read error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// Mark single notification as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?',
+            [id, req.user.id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+        res.json({ message: 'Notification marked as read' });
+    } catch (error) {
+        console.error('Mark notification read error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+// Delete a single notification
+app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await db.query(
+            'DELETE FROM notifications WHERE id = ? AND user_id = ?',
+            [id, req.user.id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+        res.json({ message: 'Notification deleted successfully' });
+    } catch (error) {
+        console.error('Delete notification error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
 // --- ADMIN ROUTES ---
 
 
@@ -448,6 +642,7 @@ app.put('/api/admin/products/:id/stock', authenticateToken, requireAdmin, async 
     try {
         const [result] = await db.query('UPDATE products SET stock = ? WHERE id = ?', [stock, id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Product not found' });
+        serverCache.clearPattern('products');
         res.json({ message: 'Stock updated successfully' });
     } catch (error) {
         console.error('Update stock error:', error);
@@ -465,6 +660,7 @@ app.put('/api/admin/products/:id', authenticateToken, requireAdmin, async (req, 
             [title, price, description, category, image, stock, is_new || false, is_popular || false, id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Product not found' });
+        serverCache.clearPattern('products');
         res.json({ message: 'Product updated successfully' });
     } catch (error) {
         console.error('Update product error:', error);
@@ -491,6 +687,7 @@ app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, async (re
     try {
         const [result] = await db.query('DELETE FROM products WHERE id = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Product not found' });
+        serverCache.clearPattern('products');
         res.json({ message: 'Product deleted successfully' });
     } catch (error) {
         console.error('Delete product error:', error);
@@ -544,6 +741,35 @@ app.put('/api/admin/orders/:id/status', authenticateToken, requireAdmin, async (
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Order not found' });
         }
+
+        // Retrieve the user ID associated with this order to send a database notification
+        const [orderRows] = await db.query('SELECT user_id FROM orders WHERE id = ?', [id]);
+        if (orderRows.length > 0) {
+            const userId = orderRows[0].user_id;
+            let title = 'Order Status Updated';
+            let body = `Your order #${id} status has been updated to "${status.charAt(0).toUpperCase() + status.slice(1)}".`;
+            
+            // Customize notifications based on status
+            if (status === 'shipped') {
+                title = 'Order Shipped! 🚀';
+                body = `Great news! Your order #${id} has been shipped and is on the way!`;
+            } else if (status === 'delivered') {
+                title = 'Order Delivered! 🎉';
+                body = `Your order #${id} has been successfully delivered. Enjoy your purchase!`;
+            } else if (status === 'cancelled') {
+                title = 'Order Cancelled ⚠️';
+                body = `Your order #${id} has been cancelled. Please contact support if you have questions.`;
+            } else if (status === 'processing') {
+                title = 'Order Processing ⚙️';
+                body = `Your order #${id} is now being prepared and processed.`;
+            }
+
+            await db.query(
+                'INSERT INTO notifications (user_id, title, body, type) VALUES (?, ?, ?, ?)',
+                [userId, title, body, 'order_status']
+            );
+        }
+
         res.json({ message: 'Order status updated successfully' });
     } catch (error) {
         console.error('Update order status error:', error);

@@ -6,11 +6,23 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
+  Linking,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
+import { useToast } from '../context/ToastContext';
+import { triggerHaptic } from '../utils/haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { fetchOrderById } from '../services/api';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw } from '../utils/responsive';
@@ -33,21 +45,85 @@ const STATUS_COLORS = {
 export default function TrackOrderScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [courierCoords, setCourierCoords] = useState(null);
+
+  const orderRef = React.useRef(order);
+  
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
 
   useEffect(() => {
     loadOrder();
+
+    const interval = setInterval(() => {
+      const currentOrder = orderRef.current;
+      if (currentOrder && ['delivered', 'cancelled'].includes(currentOrder.status)) {
+        clearInterval(interval);
+        return;
+      }
+      loadOrder(true);
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, [id]);
 
-  const loadOrder = async () => {
+  useEffect(() => {
+    if (!order) return;
+    const destLat = parseFloat(order.delivery_lat || 14.5916);
+    const destLng = parseFloat(order.delivery_lng || 120.9734);
+
+    // Initial courier offset slightly northeast
+    let curLat = destLat + 0.0035;
+    let curLng = destLng + 0.0035;
+    setCourierCoords({ latitude: curLat, longitude: curLng });
+
+    if (['processing', 'shipped'].includes(order.status)) {
+      const interval = setInterval(() => {
+        setCourierCoords(prev => {
+          if (!prev) return prev;
+          const diffLat = destLat - prev.latitude;
+          const diffLng = destLng - prev.longitude;
+
+          // Interpolate 15% closer to destination
+          const newLat = prev.latitude + diffLat * 0.15;
+          const newLng = prev.longitude + diffLng * 0.15;
+
+          // If extremely close, simulate fine hover adjustments
+          if (Math.abs(diffLat) < 0.0001 && Math.abs(diffLng) < 0.0001) {
+            return {
+              latitude: destLat + (Math.random() - 0.5) * 0.0002,
+              longitude: destLng + (Math.random() - 0.5) * 0.0002
+            };
+          }
+          return { latitude: newLat, longitude: newLng };
+        });
+      }, 3500);
+
+      return () => clearInterval(interval);
+    } else if (order.status === 'delivered') {
+      setCourierCoords({ latitude: destLat, longitude: destLng });
+    }
+  }, [order]);
+
+  const loadOrder = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const data = await fetchOrderById(id);
+      const data = await fetchOrderById(id, true);
+      const currentOrder = orderRef.current;
+      if (currentOrder && currentOrder.status !== data.status) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        triggerHaptic('success');
+        showToast(`Order status updated to ${data.status.toUpperCase()}!`, 'success');
+      }
       setOrder(data);
     } catch (e) {
       console.error('Load order error:', e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -82,7 +158,9 @@ export default function TrackOrderScreen() {
 
   const currentStep = getCurrentStepIndex();
   const isCancelled = order.status === 'cancelled';
-  const hasLocation = order.delivery_lat && order.delivery_lng;
+  const deliveryLat = parseFloat(order.delivery_lat || 14.5916);
+  const deliveryLng = parseFloat(order.delivery_lng || 120.9734);
+  const hasLocation = true; // Always display map for premium tracking experience!
   const statusColor = STATUS_COLORS[order.status] || '#888';
 
   return (
@@ -198,34 +276,93 @@ export default function TrackOrderScreen() {
               <MapView
                 style={styles.map}
                 initialRegion={{
-                  latitude: parseFloat(order.delivery_lat),
-                  longitude: parseFloat(order.delivery_lng),
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
+                  latitude: deliveryLat,
+                  longitude: deliveryLng,
+                  latitudeDelta: 0.012,
+                  longitudeDelta: 0.012,
                 }}
-                scrollEnabled={false}
-                zoomEnabled={false}
               >
+                {/* Customer Location */}
                 <Marker
                   coordinate={{
-                    latitude: parseFloat(order.delivery_lat),
-                    longitude: parseFloat(order.delivery_lng),
+                    latitude: deliveryLat,
+                    longitude: deliveryLng,
                   }}
                   title="Delivery Location"
-                  description={order.delivery_address || ''}
-                  pinColor={ACCENT}
+                  description={order.delivery_address || 'Home'}
+                  pinColor="#10B981"
                 />
+
+                {/* Courier Location */}
+                {courierCoords && (
+                  <Marker
+                    coordinate={courierCoords}
+                    title="SwiftRider (Courier)"
+                    description="Kuya Brandon is delivering your package!"
+                  >
+                    <View style={styles.courierPin}>
+                      <Ionicons name="bicycle" size={ms(16)} color="#fff" />
+                    </View>
+                  </Marker>
+                )}
+
+                {/* Route dashed Polyline */}
+                {courierCoords && (
+                  <Polyline
+                    coordinates={[
+                      courierCoords,
+                      { latitude: deliveryLat, longitude: deliveryLng }
+                    ]}
+                    strokeWidth={sw(3)}
+                    strokeColor={ACCENT}
+                    lineDashPattern={[5, 5]}
+                  />
+                )}
               </MapView>
-              {order.delivery_address && (
-                <View style={styles.addressRow}>
-                  <View style={styles.addressIcon}>
-                    <Ionicons name="location" size={ms(14)} color={ACCENT} />
-                  </View>
-                  <Text style={styles.addressText} numberOfLines={2}>
-                    {order.delivery_address}
-                  </Text>
+              <View style={styles.addressRow}>
+                <View style={styles.addressIcon}>
+                  <Ionicons name="location" size={ms(14)} color={ACCENT} />
                 </View>
-              )}
+                <Text style={styles.addressText} numberOfLines={2}>
+                  {order.delivery_address || 'Cabildo St, Intramuros, Manila'}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Courier Info Card */}
+        {['processing', 'shipped', 'delivered'].includes(order.status) && (
+          <>
+            <Text style={styles.sectionTitle}>Your SwiftRider</Text>
+            <View style={styles.card}>
+              <View style={styles.courierRow}>
+                <View style={styles.courierAvatar}>
+                  <Ionicons name="person" size={ms(20)} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.courierName}>Kuya Brandon</Text>
+                  <Text style={styles.courierVehicle}>Yamaha Aerox 155 • Plate: MV-9281</Text>
+                  <View style={styles.ratingRow}>
+                    <Ionicons name="star" size={ms(10)} color="#FFC107" />
+                    <Text style={styles.ratingText}>4.9 (248 deliveries)</Text>
+                  </View>
+                </View>
+                <View style={styles.courierActions}>
+                  <TouchableOpacity 
+                    style={styles.courierActionBtn}
+                    onPress={() => { triggerHaptic('light'); Linking.openURL('tel:+639123456789'); }}
+                  >
+                    <Ionicons name="call" size={ms(16)} color={ACCENT} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.courierActionBtn}
+                    onPress={() => { triggerHaptic('light'); showToast('Chat option coming soon!'); }}
+                  >
+                    <Ionicons name="chatbubble-ellipses" size={ms(16)} color={ACCENT} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </>
         )}
@@ -241,13 +378,13 @@ export default function TrackOrderScreen() {
               <Text style={styles.itemName} numberOfLines={1}>
                 {item.title}
               </Text>
-              <Text style={styles.itemPrice}>${parseFloat(item.price).toFixed(2)}</Text>
+              <Text style={styles.itemPrice}>₱{parseFloat(item.price).toFixed(2)}</Text>
             </View>
           ))}
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${parseFloat(order.total_amount).toFixed(2)}</Text>
+            <Text style={styles.totalValue}>₱{parseFloat(order.total_amount).toFixed(2)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -532,5 +669,56 @@ const styles = StyleSheet.create({
     fontSize: fs(20),
     fontWeight: '900',
     color: ACCENT,
+  },
+
+  // Courier Pin Style
+  courierPin: {
+    backgroundColor: ACCENT,
+    padding: sw(6),
+    borderRadius: sw(20),
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: sw(4),
+    elevation: 4,
+  },
+
+  // Courier Info Card Styles
+  courierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(12),
+  },
+  courierAvatar: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(22),
+    backgroundColor: ACCENT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  courierName: {
+    fontSize: fs(14),
+    fontWeight: '800',
+    color: '#1A1A2E',
+  },
+  courierVehicle: {
+    fontSize: fs(11),
+    color: '#666',
+    marginTop: hp(0.2),
+  },
+  courierActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+  },
+  courierActionBtn: {
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(18),
+    backgroundColor: ACCENT_LIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

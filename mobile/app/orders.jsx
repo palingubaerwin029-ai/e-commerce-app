@@ -1,9 +1,26 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  ActivityIndicator, 
+  TouchableOpacity, 
+  RefreshControl,
+  LayoutAnimation,
+  UIManager,
+  Platform,
+} from 'react-native';
+
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { fetchOrders } from '../services/api';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw } from '../utils/responsive';
@@ -30,25 +47,35 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
 
-  const loadOrders = async () => {
+      const interval = setInterval(() => {
+        loadOrders(true);
+      }, 4000);
+
+      return () => clearInterval(interval);
+    }, [])
+  );
+
+  const loadOrders = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const data = await fetchOrders();
+      const data = await fetchOrders(true);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setOrders(data);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await fetchOrders();
+      const data = await fetchOrders(true);
       setOrders(data);
     } catch (e) {
       console.error(e);
@@ -133,7 +160,7 @@ export default function OrdersScreen() {
                     <Text style={styles.itemQtyText}>{orderItem.quantity}x</Text>
                   </View>
                   <Text style={styles.itemName} numberOfLines={1}>{orderItem.title}</Text>
-                  <Text style={styles.itemPrice}>${parseFloat(orderItem.price).toFixed(2)}</Text>
+                  <Text style={styles.itemPrice}>₱{parseFloat(orderItem.price).toFixed(2)}</Text>
                 </View>
               ))}
 
@@ -143,7 +170,7 @@ export default function OrdersScreen() {
               <View style={styles.footerRow}>
                 <View>
                   <Text style={styles.totalLabel}>Total Amount</Text>
-                  <Text style={styles.totalValue}>${parseFloat(item.total_amount).toFixed(2)}</Text>
+                  <Text style={styles.totalValue}>₱{parseFloat(item.total_amount).toFixed(2)}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.trackButton}

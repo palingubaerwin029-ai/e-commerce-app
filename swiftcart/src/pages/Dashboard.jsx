@@ -13,7 +13,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadStats = async () => {
+    const loadStats = async (silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const [products, orders] = await Promise.all([
           fetchAdminProducts(),
@@ -46,14 +47,21 @@ const Dashboard = () => {
       } catch (err) {
         console.error('Failed to load stats:', err);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
+
     loadStats();
+
+    const interval = setInterval(() => {
+      loadStats(true);
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const statCards = [
-    { title: 'Total Revenue', value: `$${stats.totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'var(--success)', bg: '#E8F5E9' },
+    { title: 'Total Revenue', value: `₱${stats.totalRevenue.toFixed(2)}`, icon: DollarSign, color: 'var(--success)', bg: '#E8F5E9' },
     { title: 'Total Orders', value: stats.totalOrders, icon: ShoppingBag, color: '#6366f1', bg: '#EEF2FF' },
     { title: 'Total Products', value: stats.totalProducts, icon: Package, color: 'var(--primary)', bg: 'var(--primary-light)' },
     { title: 'Low Stock Alert', value: stats.lowStock, icon: AlertCircle, color: 'var(--danger)', bg: '#FFF5F5' },

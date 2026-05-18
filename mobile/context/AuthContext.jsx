@@ -1,6 +1,6 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiLogin, apiSignup, setAuthToken } from '../services/api';
+import { apiLogin, apiSignup, setAuthToken, registerInvalidTokenCallback } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -26,7 +26,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     bootstrapAsync();
-  }, []);
+
+    // Register callback for invalid token auto-logout
+    registerInvalidTokenCallback(() => {
+      logout();
+    });
+  }, [logout]);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -62,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     try {
       await AsyncStorage.removeItem('userToken');
@@ -74,7 +79,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const updateUser = async (updates) => {
     const updatedUser = { ...user, ...updates };

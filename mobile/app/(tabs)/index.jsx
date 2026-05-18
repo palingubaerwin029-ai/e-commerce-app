@@ -11,7 +11,12 @@ import {
   Image,
   TextInput,
   StatusBar,
+  Modal,
+  Pressable,
+  Platform,
+  Linking,
 } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { useProducts } from '../../hooks/useProducts';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
@@ -19,13 +24,29 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../../constants/theme';
 import { wp, hp, ms, fs, sw, SCREEN_WIDTH, isSmallDevice } from '../../utils/responsive';
-import { fetchCoupons, claimCoupon } from '../../services/api';
+import { fetchCoupons, claimCoupon, fetchNotifications, fetchCategories } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
+import { triggerHaptic } from '../../utils/haptics';
+import { sendLocalNotification } from '../../utils/notifications';
+import * as Location from 'expo-location';
+
 
 const CARD_GAP = sw(12);
 const CARD_WIDTH = (SCREEN_WIDTH - sw(48)) / 2;
 
-const CATEGORIES = [
+const getCategoryIcon = (category) => {
+  const normalized = category.toLowerCase().trim();
+  if (normalized.includes("men")) return "shirt-outline";
+  if (normalized.includes("women") || normalized.includes("woman")) return "woman-outline";
+  if (normalized.includes("electronics") || normalized.includes("tech") || normalized.includes("laptop")) return "laptop-outline";
+  if (normalized.includes("jewel") || normalized.includes("ring")) return "diamond-outline";
+  if (normalized.includes("accessories") || normalized.includes("extra") || normalized.includes("watch")) return "watch-outline";
+  if (normalized.includes("shoes") || normalized.includes("footwear") || normalized.includes("walk")) return "walk-outline";
+  if (normalized.includes("appliance") || normalized.includes("home") || normalized.includes("kitchen")) return "home-outline";
+  return "cube-outline"; // default dynamic category fallback icon
+};
+
+const DEFAULT_CATEGORIES = [
   { key: '', label: 'All', icon: 'grid-outline' },
   { key: "men's clothing", label: 'Men', icon: 'shirt-outline' },
   { key: "women's clothing", label: 'Women', icon: 'woman-outline' },
@@ -48,6 +69,63 @@ export default function HomeScreen() {
   const [activeFilter, setActiveFilter] = useState('All');
   const [coupons, setCoupons] = useState([]);
   const { user } = useContext(AuthContext);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isStoreLocationModalVisible, setIsStoreLocationModalVisible] = useState(false);
+
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isCouponModalVisible, setIsCouponModalVisible] = useState(false);
+
+  const loadCategories = async () => {
+    try {
+      const dynamicCategories = await fetchCategories();
+      const mapped = [
+        { key: '', label: 'All', icon: 'grid-outline' }
+      ];
+      const seen = new Set();
+      dynamicCategories.forEach(cat => {
+        const normalized = cat.toLowerCase().trim();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          let label = cat;
+          if (normalized === "men's clothing") label = "Men";
+          else if (normalized === "women's clothing") label = "Women";
+          else if (normalized === "jewelery") label = "Jewelry";
+          else label = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+
+          mapped.push({
+            key: cat,
+            label: label,
+            icon: getCategoryIcon(cat)
+          });
+        }
+      });
+      setCategories(mapped);
+    } catch (e) {
+      console.error('Failed to load categories dynamically:', e);
+    }
+  };
+
+  const handleRefresh = async () => {
+    triggerHaptic('light');
+    if (user) {
+      loadCoupons();
+      loadUnreadCount();
+    }
+    loadCategories();
+    onRefresh();
+  };
+
+  const loadUnreadCount = async () => {
+    if (!user) return;
+    try {
+      const data = await fetchNotifications(true);
+      const unread = data.filter(n => !n.is_read).length;
+      setUnreadCount(unread);
+    } catch (e) {
+      console.error('Failed to load notifications unread count:', e);
+    }
+  };
 
   const BANNER_COLORS = [
     { bg: '#FFEBEE', accent: ACCENT, badge: ACCENT, label: 'Limited time' },
@@ -57,6 +135,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (user) loadCoupons();
+    loadCategories();
   }, [user]);
 
   const loadCoupons = async () => {
@@ -68,10 +147,19 @@ export default function HomeScreen() {
 
   const handleClaim = async (couponId) => {
     try {
+      const coupon = coupons.find(c => c.id === couponId);
       await claimCoupon(couponId);
+      triggerHaptic('success');
       showToast('Coupon claimed! 🎉');
+      if (coupon) {
+        sendLocalNotification(
+          'Coupon Claimed Successfully! 🎟️',
+          `Code "${coupon.code}" has been saved to your profile. Apply it at checkout to save ${coupon.discount_percent}% off your order!`
+        );
+      }
       loadCoupons();
     } catch (e) {
+      triggerHaptic('error');
       showToast(e.message || 'Failed to claim');
     }
   };
@@ -96,14 +184,14 @@ export default function HomeScreen() {
         ) : null}
         <TouchableOpacity
           style={styles.heartButton}
-          onPress={() => { addToCart(item); showToast('Added to cart!'); }}
+          onPress={() => { triggerHaptic('light'); addToCart(item); showToast('Added to cart!'); }}
         >
           <Ionicons name="heart-outline" size={ms(16)} color={ACCENT} />
         </TouchableOpacity>
       </View>
       <View style={styles.productInfo}>
         <Text style={styles.productTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.productPrice}>${parseFloat(item.price).toFixed(2)}</Text>
+        <Text style={styles.productPrice}>₱{parseFloat(item.price).toFixed(2)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -111,8 +199,9 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle('light-content');
+      loadUnreadCount();
       return () => StatusBar.setBarStyle('dark-content');
-    }, [])
+    }, [user])
   );
 
   return (
@@ -120,16 +209,28 @@ export default function HomeScreen() {
       {/* Red Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.headerLocation}>Location</Text>
+          <TouchableOpacity 
+            onPress={() => { triggerHaptic('selection'); setIsStoreLocationModalVisible(true); }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.headerLocation}>Store Location</Text>
             <View style={styles.locationRow}>
               <Ionicons name="location" size={ms(14)} color="#fff" />
-              <Text style={styles.locationText}>SwiftCart Store</Text>
+              <Text style={styles.locationText} numberOfLines={1}>SwiftStore</Text>
               <Ionicons name="chevron-down" size={ms(12)} color="#fff" />
             </View>
-          </View>
-          <TouchableOpacity style={styles.notifButton}>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.notifButton}
+            onPress={() => { triggerHaptic('selection'); router.push('/notifications'); }}
+            activeOpacity={0.8}
+          >
             <Ionicons name="notifications-outline" size={ms(20)} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -143,7 +244,11 @@ export default function HomeScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          <TouchableOpacity style={styles.filterIcon}>
+          <TouchableOpacity 
+            style={styles.filterIcon}
+            onPress={() => { triggerHaptic('selection'); setIsCategoryModalVisible(true); }}
+            activeOpacity={0.8}
+          >
             <Ionicons name="options-outline" size={ms(16)} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -157,14 +262,16 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.columnWrapper}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={ACCENT} />
         }
         ListHeaderComponent={
           <>
             {/* Promo Banners */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>#SpecialForYou</Text>
-              <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { triggerHaptic('selection'); setIsCouponModalVisible(true); }}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bannerScroll}>
@@ -182,7 +289,7 @@ export default function HomeScreen() {
                         {coupon.discount_percent}<Text style={styles.bannerPercentSign}>%</Text>
                       </Text>
                       {coupon.min_order > 0 && (
-                        <Text style={styles.bannerMinOrder}>Min. order ${coupon.min_order}</Text>
+                        <Text style={styles.bannerMinOrder}>Min. order ₱{coupon.min_order}</Text>
                       )}
                       {coupon.claimed ? (
                         <View style={[styles.claimButton, { backgroundColor: '#E0E0E0' }]}>
@@ -212,15 +319,17 @@ export default function HomeScreen() {
             {/* Categories */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Category</Text>
-              <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { triggerHaptic('selection'); setIsCategoryModalVisible(true); }}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.key + cat.label}
                   style={styles.categoryItem}
-                  onPress={() => setCategory(cat.key)}
+                  onPress={() => { triggerHaptic('selection'); setCategory(cat.key); }}
                 >
                   <View style={[
                     styles.categoryIconBox,
@@ -245,6 +354,7 @@ export default function HomeScreen() {
                     key={tab}
                     style={[styles.filterTab, activeFilter === tab && styles.filterTabActive]}
                     onPress={() => {
+                      triggerHaptic('selection');
                       setActiveFilter(tab);
                       if (tab === 'All') setFilter('');
                       else if (tab === 'Newest') setFilter('newest');
@@ -276,6 +386,253 @@ export default function HomeScreen() {
           )
         }
       />
+
+      {/* Category Selection Modal Sheet */}
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setIsCategoryModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            {/* Modal Drag Handle indicator */}
+            <View style={styles.modalDragHandle} />
+
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>All Categories</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setIsCategoryModalVisible(false)}
+              >
+                <Ionicons name="close" size={ms(20)} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Categories Grid List */}
+            <FlatList
+              data={categories}
+              keyExtractor={(item) => item.key + item.label}
+              numColumns={3}
+              contentContainerStyle={styles.modalGridContent}
+              columnWrapperStyle={styles.modalGridRow}
+              renderItem={({ item: cat }) => {
+                const isActive = category === cat.key;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalCategoryCard,
+                      isActive && styles.modalCategoryCardActive,
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('success');
+                      setCategory(cat.key);
+                      setIsCategoryModalVisible(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.modalCategoryIconContainer,
+                      { backgroundColor: isActive ? ACCENT : ACCENT_LIGHT }
+                    ]}>
+                      <Ionicons name={cat.icon} size={ms(24)} color={isActive ? '#fff' : ACCENT} />
+                    </View>
+                    <Text 
+                      style={[
+                        styles.modalCategoryLabel,
+                        isActive && styles.modalCategoryLabelActive
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Coupon Selection Modal Sheet */}
+      <Modal
+        visible={isCouponModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsCouponModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setIsCouponModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            {/* Modal Drag Handle indicator */}
+            <View style={styles.modalDragHandle} />
+
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Special Offers & Coupons</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setIsCouponModalVisible(false)}
+              >
+                <Ionicons name="close" size={ms(20)} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Coupons List */}
+            <FlatList
+              data={coupons}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.couponModalListContent}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyCouponsModalContainer}>
+                  <Ionicons name="ticket-outline" size={ms(44)} color="#ccc" />
+                  <Text style={styles.emptyCouponsModalText}>No coupon offers available right now.</Text>
+                </View>
+              }
+              renderItem={({ item: coupon, index }) => {
+                const theme = BANNER_COLORS[index % BANNER_COLORS.length];
+                return (
+                  <View style={[styles.couponModalCard, { backgroundColor: theme.bg }]}>
+                    <View style={styles.couponModalCardLeft}>
+                      <View style={[styles.couponModalBadge, { backgroundColor: theme.badge }]}>
+                        <Text style={styles.couponModalBadgeText}>{theme.label}</Text>
+                      </View>
+                      <Text style={styles.couponModalCode}>{coupon.code}</Text>
+                      <Text style={styles.couponModalDiscount}>
+                        Save {coupon.discount_percent}% off your purchase
+                      </Text>
+                      {coupon.min_order > 0 && (
+                        <Text style={styles.couponModalMinOrder}>
+                          Min. spend: ₱{coupon.min_order}
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={styles.couponModalCardRight}>
+                      {coupon.claimed ? (
+                        <View style={[styles.couponModalClaimBtn, { backgroundColor: '#E0E0E0' }]}>
+                          <Ionicons name="checkmark-circle" size={ms(14)} color="#666" />
+                          <Text style={[styles.couponModalClaimText, { color: '#666' }]}>Saved</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.couponModalClaimBtn, { backgroundColor: theme.accent }]}
+                          onPress={() => { handleClaim(coupon.id); }}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="gift-outline" size={ms(14)} color="#fff" />
+                          <Text style={styles.couponModalClaimText}>Claim</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* SwiftStore Pinpoint Location Modal */}
+      <Modal
+        visible={isStoreLocationModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsStoreLocationModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setIsStoreLocationModalVisible(false)}
+        >
+          <View style={[styles.modalContent, { paddingBottom: 0 }]}>
+            {/* Modal Drag Handle indicator */}
+            <View style={styles.modalDragHandle} />
+
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>SwiftStore Location</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setIsStoreLocationModalVisible(false)}
+              >
+                <Ionicons name="close" size={ms(20)} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Store Map */}
+            <View style={styles.storeMapContainer}>
+              <MapView
+                style={styles.storeMap}
+                initialRegion={{
+                  latitude: 14.5916,
+                  longitude: 120.9734,
+                  latitudeDelta: 0.008,
+                  longitudeDelta: 0.008,
+                }}
+              >
+                <Marker
+                  coordinate={{ latitude: 14.5916, longitude: 120.9734 }}
+                  title="SwiftStore"
+                  description="Cabildo St, Intramuros, Manila"
+                  pinColor={ACCENT}
+                />
+              </MapView>
+            </View>
+
+            {/* Store Details Card */}
+            <View style={styles.storeDetailsCard}>
+              <View style={styles.storeDetailsRow}>
+                <Ionicons name="location-sharp" size={ms(18)} color={ACCENT} style={styles.storeDetailsIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.storeDetailsLabel}>Address</Text>
+                  <Text style={styles.storeDetailsText}>
+                    Cabildo St, Intramuros, Manila, 1002 Metro Manila, Philippines
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.storeDetailsRow}>
+                <Ionicons name="time" size={ms(18)} color={ACCENT} style={styles.storeDetailsIcon} />
+                <View>
+                  <Text style={styles.storeDetailsLabel}>Opening Hours</Text>
+                  <Text style={styles.storeDetailsText}>Open Daily: 9:00 AM - 9:00 PM</Text>
+                </View>
+              </View>
+
+              <View style={styles.storeDetailsRow}>
+                <Ionicons name="call" size={ms(18)} color={ACCENT} style={styles.storeDetailsIcon} />
+                <View>
+                  <Text style={styles.storeDetailsLabel}>Contact & Email</Text>
+                  <Text style={styles.storeDetailsText}>+63 912 345 6789  |  support@swiftstore.com</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.directionsBtn}
+                onPress={() => {
+                  triggerHaptic('success');
+                  const url = Platform.select({
+                    ios: 'maps:0,0?q=SwiftStore@14.5916,120.9734',
+                    android: 'geo:0,0?q=14.5916,120.9734(SwiftStore)'
+                  });
+                  Linking.openURL(url);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="navigate-circle" size={ms(18)} color="#fff" />
+                <Text style={styles.directionsBtnText}>Get Directions on Maps</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -300,7 +657,7 @@ const styles = StyleSheet.create({
   },
   headerLocation: { color: 'rgba(255,255,255,0.7)', fontSize: fs(11), marginBottom: hp(0.4) },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: sw(4) },
-  locationText: { color: '#fff', fontSize: fs(14), fontWeight: '600' },
+  locationText: { color: '#fff', fontSize: fs(14), fontWeight: '600', maxWidth: wp(60) },
   notifButton: {
     width: sw(38),
     height: sw(38),
@@ -470,4 +827,238 @@ const styles = StyleSheet.create({
   retryButton: { backgroundColor: ACCENT, paddingHorizontal: sw(24), paddingVertical: sw(10), borderRadius: sw(20) },
   retryText: { color: '#fff', fontWeight: '700', fontSize: fs(13) },
   emptyText: { textAlign: 'center', marginTop: hp(5), color: '#999', fontSize: fs(14) },
+  badgeCount: {
+    position: 'absolute',
+    top: sw(-2),
+    right: sw(-2),
+    backgroundColor: '#EF4444',
+    borderRadius: sw(9),
+    width: sw(18),
+    height: sw(18),
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: sw(1.5),
+    borderColor: ACCENT,
+  },
+  badgeCountText: {
+    color: '#fff',
+    fontSize: fs(9),
+    fontWeight: '900',
+    lineHeight: fs(11),
+  },
+
+  // Category Selection Modal Sheet
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: sw(24),
+    borderTopRightRadius: sw(24),
+    paddingBottom: hp(4),
+    maxHeight: hp(65),
+    minHeight: hp(35),
+  },
+  modalDragHandle: {
+    width: sw(40),
+    height: sw(5),
+    borderRadius: sw(2.5),
+    backgroundColor: '#E0E0E0',
+    alignSelf: 'center',
+    marginTop: hp(1.2),
+    marginBottom: hp(0.8),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: wp(6),
+    paddingVertical: hp(1.5),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalTitle: {
+    fontSize: fs(18),
+    fontWeight: '800',
+    color: '#1A1A2E',
+  },
+  modalCloseButton: {
+    width: sw(34),
+    height: sw(34),
+    borderRadius: sw(17),
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalGridContent: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+  },
+  modalGridRow: {
+    justifyContent: 'flex-start',
+    gap: sw(12),
+  },
+  modalCategoryCard: {
+    width: (SCREEN_WIDTH - sw(32) - sw(24)) / 3, // evenly spaced grid columns
+    backgroundColor: '#FAF9F9',
+    borderRadius: sw(18),
+    paddingVertical: hp(1.8),
+    paddingHorizontal: sw(8),
+    alignItems: 'center',
+    marginBottom: hp(1.5),
+    borderWidth: 1,
+    borderColor: '#F5F2F2',
+  },
+  modalCategoryCardActive: {
+    borderColor: ACCENT_LIGHT,
+    backgroundColor: '#FFFDFD',
+  },
+  modalCategoryIconContainer: {
+    width: sw(50),
+    height: sw(50),
+    borderRadius: sw(25),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: hp(1.2),
+  },
+  modalCategoryLabel: {
+    fontSize: fs(11),
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  modalCategoryLabelActive: {
+    fontWeight: '800',
+    color: ACCENT,
+  },
+
+  // Coupon Selection Modal Sheet
+  couponModalListContent: {
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(2),
+  },
+  emptyCouponsModalContainer: {
+    alignItems: 'center',
+    paddingVertical: hp(6),
+  },
+  emptyCouponsModalText: {
+    fontSize: fs(13),
+    color: '#999',
+    marginTop: hp(1),
+  },
+  couponModalCard: {
+    flexDirection: 'row',
+    borderRadius: sw(16),
+    padding: sw(16),
+    marginBottom: hp(1.5),
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  couponModalCardLeft: {
+    flex: 1,
+    marginRight: sw(10),
+  },
+  couponModalBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(2),
+    borderRadius: sw(6),
+    marginBottom: hp(0.5),
+  },
+  couponModalBadgeText: {
+    color: '#fff',
+    fontSize: fs(9),
+    fontWeight: '800',
+  },
+  couponModalCode: {
+    fontSize: fs(18),
+    fontWeight: '900',
+    color: '#1A1A2E',
+    marginBottom: hp(0.3),
+  },
+  couponModalDiscount: {
+    fontSize: fs(12),
+    color: '#444',
+    fontWeight: '600',
+    marginBottom: hp(0.2),
+  },
+  couponModalMinOrder: {
+    fontSize: fs(10),
+    color: '#666',
+  },
+  couponModalCardRight: {
+    justifyContent: 'center',
+  },
+  couponModalClaimBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(8),
+    borderRadius: sw(10),
+  },
+  couponModalClaimText: {
+    color: '#fff',
+    fontSize: fs(12),
+    fontWeight: '800',
+  },
+
+  // Store Location Modal Styles
+  storeMapContainer: {
+    height: hp(25),
+    width: '100%',
+    overflow: 'hidden',
+  },
+  storeMap: {
+    width: '100%',
+    height: '100%',
+  },
+  storeDetailsCard: {
+    padding: sw(20),
+    paddingBottom: hp(4),
+  },
+  storeDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: hp(1.8),
+  },
+  storeDetailsIcon: {
+    marginRight: sw(12),
+    marginTop: hp(0.2),
+  },
+  storeDetailsLabel: {
+    fontSize: fs(10),
+    color: '#999',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: hp(0.2),
+  },
+  storeDetailsText: {
+    fontSize: fs(13),
+    color: '#333',
+    fontWeight: '600',
+    lineHeight: fs(18),
+  },
+  directionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+    backgroundColor: ACCENT,
+    borderRadius: sw(12),
+    paddingVertical: hp(1.8),
+    marginTop: hp(1),
+    shadowColor: ACCENT,
+    shadowOpacity: 0.2,
+    shadowRadius: sw(8),
+    elevation: 3,
+  },
+  directionsBtnText: {
+    color: '#fff',
+    fontSize: fs(14),
+    fontWeight: '800',
+  },
 });
