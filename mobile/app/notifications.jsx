@@ -176,7 +176,7 @@ export default function NotificationsScreen() {
               <Ionicons name="notifications-off-outline" size={ms(52)} color="#ccc" />
             </View>
             <Text style={styles.emptyTitle}>All quiet here</Text>
-            <Text style={styles.emptySubtitle}>You'll receive notifications about order status, delivery, and promotions.</Text>
+            <Text style={styles.emptySubtitle}>{"You'll receive notifications about order status, delivery, and promotions."}</Text>
             <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/(tabs)')}>
               <Text style={styles.shopButtonText}>Explore Store</Text>
             </TouchableOpacity>

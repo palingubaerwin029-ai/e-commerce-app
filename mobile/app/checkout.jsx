@@ -257,7 +257,7 @@ export default function CheckoutScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -405,80 +405,85 @@ export default function CheckoutScreen() {
         onRequestClose={() => setActivePaymentModal(null)}
       >
         <SafeAreaView style={styles.gcashContainer}>
-          <View style={styles.gcashHeader}>
-            <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
-              <Ionicons name="arrow-back" size={ms(22)} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.gcashHeaderTitle}>GCash Portal</Text>
-            <View style={{ width: 22 }} />
-          </View>
-
-          {paymentProcessing ? (
-            <View style={styles.paymentProcessingContainer}>
-              <ActivityIndicator size="large" color="#005BEA" />
-              <Text style={styles.processingTitle}>Authorizing Transaction...</Text>
-              <Text style={styles.processingSubtitle}>Please do not close this window.</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.gcashHeader}>
+              <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
+                <Ionicons name="arrow-back" size={ms(22)} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.gcashHeaderTitle}>GCash Portal</Text>
+              <View style={{ width: 22 }} />
             </View>
-          ) : (
-            <View style={styles.gcashBody}>
-              <View style={styles.gcashMerchantCard}>
-                <Text style={styles.gcashMerchantLabel}>Merchant</Text>
-                <Text style={styles.gcashMerchantName}>SwiftCart Inc.</Text>
-                <View style={styles.gcashAmountDivider} />
-                <Text style={styles.gcashAmountLabel}>Amount Due</Text>
-                <Text style={styles.gcashAmountValue}>₱{finalTotal.toFixed(2)}</Text>
-              </View>
 
-              {gcashStep === 1 ? (
-                <View style={styles.gcashFormCard}>
-                  <Text style={styles.gcashFormTitle}>Pay with GCash</Text>
-                  <Text style={styles.gcashFormSubtitle}>Enter your GCash mobile number to proceed</Text>
-                  
-                  <View style={styles.gcashInputRow}>
-                    <Text style={styles.gcashInputPrefix}>+63</Text>
+            {paymentProcessing ? (
+              <View style={styles.paymentProcessingContainer}>
+                <ActivityIndicator size="large" color="#005BEA" />
+                <Text style={styles.processingTitle}>Authorizing Transaction...</Text>
+                <Text style={styles.processingSubtitle}>Please do not close this window.</Text>
+              </View>
+            ) : (
+              <View style={styles.gcashBody}>
+                <View style={styles.gcashMerchantCard}>
+                  <Text style={styles.gcashMerchantLabel}>Merchant</Text>
+                  <Text style={styles.gcashMerchantName}>SwiftCart Inc.</Text>
+                  <View style={styles.gcashAmountDivider} />
+                  <Text style={styles.gcashAmountLabel}>Amount Due</Text>
+                  <Text style={styles.gcashAmountValue}>₱{finalTotal.toFixed(2)}</Text>
+                </View>
+
+                {gcashStep === 1 ? (
+                  <View style={styles.gcashFormCard}>
+                    <Text style={styles.gcashFormTitle}>Pay with GCash</Text>
+                    <Text style={styles.gcashFormSubtitle}>Enter your GCash mobile number to proceed</Text>
+                    
+                    <View style={styles.gcashInputRow}>
+                      <Text style={styles.gcashInputPrefix}>+63</Text>
+                      <TextInput
+                        style={styles.gcashPhoneInput}
+                        placeholder="9XXXXXXXXX"
+                        placeholderTextColor="#bbb"
+                        keyboardType="numeric"
+                        maxLength={10}
+                        value={gcashPhone}
+                        onChangeText={setGcashPhone}
+                      />
+                    </View>
+
+                    <TouchableOpacity style={styles.gcashNextBtn} onPress={handleGCashPay}>
+                      <Text style={styles.gcashBtnText}>Next</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.gcashFormCard}>
+                    <Text style={styles.gcashFormTitle}>Enter 4-Digit MPIN</Text>
+                    <Text style={styles.gcashFormSubtitle}>Verify your identity to authorize payment</Text>
+                    
                     <TextInput
-                      style={styles.gcashPhoneInput}
-                      placeholder="9XXXXXXXXX"
+                      style={styles.gcashMpinInput}
+                      placeholder="••••"
                       placeholderTextColor="#bbb"
                       keyboardType="numeric"
-                      maxLength={10}
-                      value={gcashPhone}
-                      onChangeText={setGcashPhone}
+                      secureTextEntry={true}
+                      maxLength={4}
+                      value={gcashMpin}
+                      onChangeText={setGcashMpin}
+                      textAlign="center"
                     />
+
+                    <TouchableOpacity style={[styles.gcashNextBtn, { backgroundColor: '#005BEA' }]} onPress={handleGCashPay}>
+                      <Text style={styles.gcashBtnText}>Confirm & Pay ₱{(finalTotal * 56).toFixed(2)}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.gcashBackStepBtn} onPress={() => setGcashStep(1)}>
+                      <Text style={styles.gcashBackStepText}>Change Number</Text>
+                    </TouchableOpacity>
                   </View>
-
-                  <TouchableOpacity style={styles.gcashNextBtn} onPress={handleGCashPay}>
-                    <Text style={styles.gcashBtnText}>Next</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.gcashFormCard}>
-                  <Text style={styles.gcashFormTitle}>Enter 4-Digit MPIN</Text>
-                  <Text style={styles.gcashFormSubtitle}>Verify your identity to authorize payment</Text>
-                  
-                  <TextInput
-                    style={styles.gcashMpinInput}
-                    placeholder="••••"
-                    placeholderTextColor="#bbb"
-                    keyboardType="numeric"
-                    secureTextEntry={true}
-                    maxLength={4}
-                    value={gcashMpin}
-                    onChangeText={setGcashMpin}
-                    textAlign="center"
-                  />
-
-                  <TouchableOpacity style={[styles.gcashNextBtn, { backgroundColor: '#005BEA' }]} onPress={handleGCashPay}>
-                    <Text style={styles.gcashBtnText}>Confirm & Pay ₱{(finalTotal * 56).toFixed(2)}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.gcashBackStepBtn} onPress={() => setGcashStep(1)}>
-                    <Text style={styles.gcashBackStepText}>Change Number</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
+                )}
+              </View>
+            )}
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -490,59 +495,64 @@ export default function CheckoutScreen() {
         onRequestClose={() => setActivePaymentModal(null)}
       >
         <SafeAreaView style={styles.mayaContainer}>
-          <View style={styles.mayaHeader}>
-            <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
-              <Ionicons name="arrow-back" size={ms(22)} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.mayaHeaderTitle}>PayMaya Portal</Text>
-            <View style={{ width: 22 }} />
-          </View>
-
-          {paymentProcessing ? (
-            <View style={styles.paymentProcessingContainer}>
-              <ActivityIndicator size="large" color="#00c300" />
-              <Text style={styles.processingTitle}>Verifying Secure Token...</Text>
-              <Text style={styles.processingSubtitle}>Processing your payment gateway request.</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.mayaHeader}>
+              <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
+                <Ionicons name="arrow-back" size={ms(22)} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.mayaHeaderTitle}>PayMaya Portal</Text>
+              <View style={{ width: 22 }} />
             </View>
-          ) : (
-            <View style={styles.mayaBody}>
-              <View style={styles.mayaMerchantCard}>
-                <Text style={styles.mayaMerchantLabel}>Merchant</Text>
-                <Text style={styles.mayaMerchantName}>SwiftCart Inc.</Text>
-                <View style={styles.mayaAmountDivider} />
-                <Text style={styles.mayaAmountLabel}>Total Payment</Text>
-                <Text style={styles.mayaAmountValue}>₱{finalTotal.toFixed(2)}</Text>
+
+            {paymentProcessing ? (
+              <View style={styles.paymentProcessingContainer}>
+                <ActivityIndicator size="large" color="#00c300" />
+                <Text style={styles.processingTitle}>Verifying Secure Token...</Text>
+                <Text style={styles.processingSubtitle}>Processing your payment gateway request.</Text>
               </View>
+            ) : (
+              <View style={styles.mayaBody}>
+                <View style={styles.mayaMerchantCard}>
+                  <Text style={styles.mayaMerchantLabel}>Merchant</Text>
+                  <Text style={styles.mayaMerchantName}>SwiftCart Inc.</Text>
+                  <View style={styles.mayaAmountDivider} />
+                  <Text style={styles.mayaAmountLabel}>Total Payment</Text>
+                  <Text style={styles.mayaAmountValue}>₱{finalTotal.toFixed(2)}</Text>
+                </View>
 
-              <View style={styles.mayaFormCard}>
-                <Text style={styles.mayaFormTitle}>Log in to PayMaya</Text>
-                <Text style={styles.mayaFormSubtitle}>Enter your registered mobile number</Text>
+                <View style={styles.mayaFormCard}>
+                  <Text style={styles.mayaFormTitle}>Log in to PayMaya</Text>
+                  <Text style={styles.mayaFormSubtitle}>Enter your registered mobile number</Text>
 
-                <TextInput
-                  style={styles.mayaInput}
-                  placeholder="Mobile number"
-                  placeholderTextColor="#bbb"
-                  keyboardType="numeric"
-                  maxLength={11}
-                  value={mayaPhone}
-                  onChangeText={setMayaPhone}
-                />
+                  <TextInput
+                    style={styles.mayaInput}
+                    placeholder="Mobile number"
+                    placeholderTextColor="#bbb"
+                    keyboardType="numeric"
+                    maxLength={11}
+                    value={mayaPhone}
+                    onChangeText={setMayaPhone}
+                  />
 
-                <TextInput
-                  style={styles.mayaInput}
-                  placeholder="Password"
-                  placeholderTextColor="#bbb"
-                  secureTextEntry={true}
-                  value={mayaPassword}
-                  onChangeText={setMayaPassword}
-                />
+                  <TextInput
+                    style={styles.mayaInput}
+                    placeholder="Password"
+                    placeholderTextColor="#bbb"
+                    secureTextEntry={true}
+                    value={mayaPassword}
+                    onChangeText={setMayaPassword}
+                  />
 
-                <TouchableOpacity style={styles.mayaPayBtn} onPress={handlePayMayaPay}>
-                  <Text style={styles.mayaBtnText}>Pay Securely</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity style={styles.mayaPayBtn} onPress={handlePayMayaPay}>
+                    <Text style={styles.mayaBtnText}>Pay Securely</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
+            )}
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -554,102 +564,107 @@ export default function CheckoutScreen() {
         onRequestClose={() => setActivePaymentModal(null)}
       >
         <SafeAreaView style={styles.cardContainer}>
-          <View style={styles.cardHeader}>
-            <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
-              <Ionicons name="close" size={ms(24)} color="#1A1A2E" />
-            </TouchableOpacity>
-            <Text style={styles.cardHeaderTitle}>Credit/Debit Card</Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          {paymentProcessing ? (
-            <View style={styles.paymentProcessingContainer}>
-              <ActivityIndicator size="large" color={ACCENT} />
-              <Text style={styles.processingTitle}>Authorizing Charge...</Text>
-              <Text style={styles.processingSubtitle}>Contacting card issuer network.</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.cardHeader}>
+              <TouchableOpacity onPress={() => setActivePaymentModal(null)}>
+                <Ionicons name="close" size={ms(24)} color="#1A1A2E" />
+              </TouchableOpacity>
+              <Text style={styles.cardHeaderTitle}>Credit/Debit Card</Text>
+              <View style={{ width: 24 }} />
             </View>
-          ) : (
-            <ScrollView contentContainerStyle={styles.cardScroll} showsVerticalScrollIndicator={false}>
-              {/* Dynamic Credit Card Template Preview */}
-              <View style={styles.cardTemplate}>
-                <Ionicons name="card" size={ms(40)} color="#fff" style={styles.cardTemplateIcon} />
-                <Text style={styles.cardTemplateNumber}>
-                  {cardNumber || '•••• •••• •••• ••••'}
-                </Text>
-                <View style={styles.cardTemplateRow}>
-                  <View>
-                    <Text style={styles.cardTemplateLabel}>CARDHOLDER</Text>
-                    <Text style={styles.cardTemplateName}>
-                      {cardName.toUpperCase() || 'YOUR NAME'}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.cardTemplateLabel}>EXPIRES</Text>
-                    <Text style={styles.cardTemplateExpiry}>
-                      {cardExpiry || 'MM/YY'}
-                    </Text>
-                  </View>
-                </View>
+
+            {paymentProcessing ? (
+              <View style={styles.paymentProcessingContainer}>
+                <ActivityIndicator size="large" color={ACCENT} />
+                <Text style={styles.processingTitle}>Authorizing Charge...</Text>
+                <Text style={styles.processingSubtitle}>Contacting card issuer network.</Text>
               </View>
-
-              <View style={styles.cardForm}>
-                <Text style={styles.cardFormTitle}>Payment Information</Text>
-
-                <Text style={styles.cardFormLabel}>Cardholder Name</Text>
-                <TextInput
-                  style={styles.cardFormInput}
-                  placeholder="John Doe"
-                  placeholderTextColor="#bbb"
-                  value={cardName}
-                  onChangeText={setCardName}
-                  autoCapitalize="words"
-                />
-
-                <Text style={styles.cardFormLabel}>Card Number</Text>
-                <TextInput
-                  style={styles.cardFormInput}
-                  placeholder="0000 0000 0000 0000"
-                  placeholderTextColor="#bbb"
-                  keyboardType="numeric"
-                  maxLength={19}
-                  value={cardNumber}
-                  onChangeText={(t) => setCardNumber(formatCardNumber(t))}
-                />
-
-                <View style={styles.cardFormRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardFormLabel}>Expiry Date</Text>
-                    <TextInput
-                      style={styles.cardFormInput}
-                      placeholder="MM/YY"
-                      placeholderTextColor="#bbb"
-                      keyboardType="numeric"
-                      maxLength={5}
-                      value={cardExpiry}
-                      onChangeText={(t) => setCardExpiry(formatCardExpiry(t))}
-                    />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: sw(12) }}>
-                    <Text style={styles.cardFormLabel}>CVV</Text>
-                    <TextInput
-                      style={styles.cardFormInput}
-                      placeholder="123"
-                      placeholderTextColor="#bbb"
-                      keyboardType="numeric"
-                      maxLength={3}
-                      secureTextEntry={true}
-                      value={cardCvv}
-                      onChangeText={setCardCvv}
-                    />
+            ) : (
+              <ScrollView contentContainerStyle={styles.cardScroll} showsVerticalScrollIndicator={false}>
+                {/* Dynamic Credit Card Template Preview */}
+                <View style={styles.cardTemplate}>
+                  <Ionicons name="card" size={ms(40)} color="#fff" style={styles.cardTemplateIcon} />
+                  <Text style={styles.cardTemplateNumber}>
+                    {cardNumber || '•••• •••• •••• ••••'}
+                  </Text>
+                  <View style={styles.cardTemplateRow}>
+                    <View>
+                      <Text style={styles.cardTemplateLabel}>CARDHOLDER</Text>
+                      <Text style={styles.cardTemplateName}>
+                        {cardName.toUpperCase() || 'YOUR NAME'}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.cardTemplateLabel}>EXPIRES</Text>
+                      <Text style={styles.cardTemplateExpiry}>
+                        {cardExpiry || 'MM/YY'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
-                <TouchableOpacity style={styles.cardSubmitBtn} onPress={handleCardPay}>
-                  <Text style={styles.cardSubmitText}>Pay ₱{finalTotal.toFixed(2)}</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          )}
+                <View style={styles.cardForm}>
+                  <Text style={styles.cardFormTitle}>Payment Information</Text>
+
+                  <Text style={styles.cardFormLabel}>Cardholder Name</Text>
+                  <TextInput
+                    style={styles.cardFormInput}
+                    placeholder="John Doe"
+                    placeholderTextColor="#bbb"
+                    value={cardName}
+                    onChangeText={setCardName}
+                    autoCapitalize="words"
+                  />
+
+                  <Text style={styles.cardFormLabel}>Card Number</Text>
+                  <TextInput
+                    style={styles.cardFormInput}
+                    placeholder="0000 0000 0000 0000"
+                    placeholderTextColor="#bbb"
+                    keyboardType="numeric"
+                    maxLength={19}
+                    value={cardNumber}
+                    onChangeText={(t) => setCardNumber(formatCardNumber(t))}
+                  />
+
+                  <View style={styles.cardFormRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardFormLabel}>Expiry Date</Text>
+                      <TextInput
+                        style={styles.cardFormInput}
+                        placeholder="MM/YY"
+                        placeholderTextColor="#bbb"
+                        keyboardType="numeric"
+                        maxLength={5}
+                        value={cardExpiry}
+                        onChangeText={(t) => setCardExpiry(formatCardExpiry(t))}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: sw(12) }}>
+                      <Text style={styles.cardFormLabel}>CVV</Text>
+                      <TextInput
+                        style={styles.cardFormInput}
+                        placeholder="123"
+                        placeholderTextColor="#bbb"
+                        keyboardType="numeric"
+                        maxLength={3}
+                        secureTextEntry={true}
+                        value={cardCvv}
+                        onChangeText={setCardCvv}
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity style={styles.cardSubmitBtn} onPress={handleCardPay}>
+                    <Text style={styles.cardSubmitText}>Pay ₱{finalTotal.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

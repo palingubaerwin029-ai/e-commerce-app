@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.swiftcart.app",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F44336",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
