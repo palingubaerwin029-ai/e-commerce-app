@@ -16,10 +16,11 @@ if (!JWT_SECRET) {
 }
 
 const allowedOrigins = [
-    'http://localhost:5173', // Web Dashboard
+    'http://localhost:5173', // Web Dashboard (Local)
     'http://127.0.0.1:5173',
     'http://localhost:8081', // Metro Bundler (Local Web)
     'http://127.0.0.1:8081',
+    'https://swiftcart-backend-quvb.onrender.com', // Render Backend
 ];
 
 app.use(cors({
@@ -27,9 +28,11 @@ app.use(cors({
         // Allow requests with no origin (like native mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        // Match explicit whitelist or standard intranet/localhost origins
+        // Match explicit whitelist, production cloud domains, or standard intranet/localhost origins
         const isAllowed = allowedOrigins.indexOf(origin) !== -1 ||
-            /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+            /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+            /\.onrender\.com$/.test(origin) ||
+            /\.vercel\.app$/.test(origin);
             
         if (!isAllowed) {
             console.warn(`[CORS Blocked] Unauthorized Origin: ${origin}`);
