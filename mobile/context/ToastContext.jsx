@@ -5,10 +5,12 @@ const ToastContext = createContext();
 
 export function ToastProvider({ children }) {
   const [toastMessage, setToastMessage] = useState(null);
+  const [toastType, setToastType] = useState('success'); // 'success', 'error', 'warning', 'info'
   const opacity = useRef(new Animated.Value(0)).current;
 
-  const showToast = useCallback((message) => {
+  const showToast = useCallback((message, type = 'success') => {
     setToastMessage(message);
+    setToastType(type);
     Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
       Animated.delay(2000),
@@ -16,13 +18,28 @@ export function ToastProvider({ children }) {
     ]).start(() => setToastMessage(null));
   }, [opacity]);
 
+  const getToastStyle = () => {
+    const baseStyle = { ...styles.toastContainer };
+    switch (toastType) {
+      case 'error':
+        return { ...baseStyle, backgroundColor: '#EF4444' };
+      case 'warning':
+        return { ...baseStyle, backgroundColor: '#F59E0B' };
+      case 'info':
+        return { ...baseStyle, backgroundColor: '#3B82F6' };
+      case 'success':
+      default:
+        return { ...baseStyle, backgroundColor: '#10B981' };
+    }
+  };
+
   const value = { showToast };
 
   return (
     <ToastContext.Provider value={value}>
       {children}
       {toastMessage && (
-        <Animated.View style={[styles.toastContainer, { opacity }]} pointerEvents="none">
+        <Animated.View style={[getToastStyle(), { opacity }]} pointerEvents="none">
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
@@ -38,7 +55,6 @@ const styles = StyleSheet.create({
     bottom: 100,
     left: 20,
     right: 20,
-    backgroundColor: '#1a1a1a',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

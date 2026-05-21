@@ -9,6 +9,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Define logout before useEffect to avoid dependency issues
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData');
+      setAuthToken(null);
+      setUser(null);
+    } catch (e) {
+      console.error('Failed to clear token', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // Check for token on startup
     const bootstrapAsync = async () => {
@@ -66,20 +81,6 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
-  const logout = useCallback(async () => {
-    setLoading(true);
-    try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
-      setAuthToken(null);
-      setUser(null);
-    } catch (e) {
-      console.error('Failed to clear token', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const updateUser = async (updates) => {
     const updatedUser = { ...user, ...updates };
