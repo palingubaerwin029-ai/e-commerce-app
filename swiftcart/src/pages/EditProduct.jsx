@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchAdminProductById, createProduct, updateProduct, uploadImage } from '../services/api';
+import { fetchAdminProductById, createProduct, updateProduct, uploadImage, fetchCategories } from '../services/api';
 import { ArrowLeft, Save, Upload, X, Loader2 } from 'lucide-react';
 
 const EditProduct = () => {
@@ -21,8 +21,10 @@ const EditProduct = () => {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
+    loadCategories();
     if (isEdit) {
       loadProduct();
     }
@@ -46,6 +48,15 @@ const EditProduct = () => {
       navigate('/products');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const cats = await fetchCategories();
+      setCategories(cats);
+    } catch (err) {
+      console.error('Failed to load categories', err);
     }
   };
 
@@ -168,10 +179,17 @@ const EditProduct = () => {
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>Category</label>
                 <input 
                   name="category"
+                  list="categories-list"
                   className="input" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}
                   value={formData.category} onChange={handleChange}
                   placeholder="e.g., Electronics"
+                  autoComplete="off"
                 />
+                <datalist id="categories-list">
+                  {categories.map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>

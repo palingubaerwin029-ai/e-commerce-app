@@ -37,6 +37,11 @@ export const adminLogin = async (email, password) => {
 };
 
 // Products API
+export const fetchCategories = async () => {
+  const response = await api.get('/products/categories');
+  return response.data;
+};
+
 export const fetchAdminProducts = async () => {
   const response = await api.get('/admin/products');
   return response.data;
