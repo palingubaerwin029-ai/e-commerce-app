@@ -14,6 +14,7 @@ import { wp, hp, ms, fs, sw } from '../utils/responsive';
 import { triggerHaptic } from '../utils/haptics';
 import { sendLocalNotification } from '../utils/notifications';
 import Constants from 'expo-constants';
+import LeafletMap from '../components/LeafletMap';
 
 const checkMapApiKey = () => {
   if (Platform.OS === 'ios') return true;
@@ -386,31 +387,14 @@ export default function CheckoutScreen() {
                   <Marker coordinate={deliveryLocation} title="Delivery Location" description={address} pinColor={ACCENT} />
                 </MapView>
               ) : (
-                <View style={[styles.map, styles.mapFallbackContainer]}>
-                  <Ionicons name="map-outline" size={ms(36)} color="#999" style={{ marginBottom: hp(0.5) }} />
-                  <Text style={styles.mapFallbackText}>Interactive Map Unavailable</Text>
-                  <Text style={styles.mapFallbackDesc}>
-                    Google Maps API Key not set. You can manually enter your address details below.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.mapFallbackButton}
-                    onPress={() => {
-                      triggerHaptic('light');
-                      const lat = deliveryLocation.latitude;
-                      const lng = deliveryLocation.longitude;
-                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                      const latLng = `${lat},${lng}`;
-                      const url = Platform.select({
-                        ios: `${scheme}Delivery@${latLng}`,
-                        android: `${scheme}${latLng}(Delivery)`
-                      });
-                      Linking.openURL(url);
-                    }}
-                  >
-                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
-                    <Text style={styles.mapFallbackButtonText}>Check coordinates in Map App</Text>
-                  </TouchableOpacity>
-                </View>
+                <LeafletMap
+                  latitude={deliveryLocation.latitude}
+                  longitude={deliveryLocation.longitude}
+                  markerTitle="Delivery Location"
+                  markerDescription={address}
+                  onPress={(coords) => handleMapPress({ nativeEvent: { coordinate: coords } })}
+                  style={styles.map}
+                />
               )}
               <View style={styles.addressInputContainer}>
                 <Ionicons name="location" size={ms(16)} color={ACCENT} style={{ marginTop: hp(1.2) }} />
@@ -427,7 +411,7 @@ export default function CheckoutScreen() {
               <TouchableOpacity style={styles.changeLocationBtn} onPress={getLocation}>
                 <Text style={styles.changeLocationText}>📍 Re-detect my location</Text>
               </TouchableOpacity>
-              {checkMapApiKey() && <Text style={styles.mapHint}>Tap the map to adjust your delivery pin</Text>}
+              <Text style={styles.mapHint}>Tap the map to adjust your delivery pin</Text>
             </>
           )}
         </View>

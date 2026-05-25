@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw } from '../utils/responsive';
 import Constants from 'expo-constants';
+import LeafletMap from '../components/LeafletMap';
 
 const STEPS = [
   { key: 'pending', label: 'Order Placed', icon: 'receipt-outline', desc: 'Your order has been received' },
@@ -328,29 +329,16 @@ export default function TrackOrderScreen() {
                   )}
                 </MapView>
               ) : (
-                <View style={[styles.map, styles.mapFallbackContainer]}>
-                  <Ionicons name="map-outline" size={ms(36)} color="#999" style={{ marginBottom: hp(0.5) }} />
-                  <Text style={styles.mapFallbackText}>Tracking Map Unavailable</Text>
-                  <Text style={styles.mapFallbackDesc}>
-                    Google Maps API Key not set. You can track your rider in the native map app.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.mapFallbackButton}
-                    onPress={() => {
-                      triggerHaptic('light');
-                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                      const latLng = `${deliveryLat},${deliveryLng}`;
-                      const url = Platform.select({
-                        ios: `${scheme}Delivery@${latLng}`,
-                        android: `${scheme}${latLng}(Delivery)`
-                      });
-                      Linking.openURL(url);
-                    }}
-                  >
-                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
-                    <Text style={styles.mapFallbackButtonText}>Open Route in Map App</Text>
-                  </TouchableOpacity>
-                </View>
+                <LeafletMap
+                  latitude={deliveryLat}
+                  longitude={deliveryLng}
+                  markerTitle="Delivery Location"
+                  markerDescription={order.delivery_address || 'Home'}
+                  courierLatitude={courierCoords?.latitude}
+                  courierLongitude={courierCoords?.longitude}
+                  courierTitle="SwiftRider (Courier)"
+                  style={styles.map}
+                />
               )}
               <View style={styles.addressRow}>
                 <View style={styles.addressIcon}>

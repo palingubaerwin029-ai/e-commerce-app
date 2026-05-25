@@ -30,6 +30,7 @@ import { triggerHaptic } from '../../utils/haptics';
 import { sendLocalNotification } from '../../utils/notifications';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
+import LeafletMap from '../../components/LeafletMap';
 
 
 const CARD_GAP = sw(12);
@@ -595,32 +596,13 @@ export default function HomeScreen() {
                   />
                 </MapView>
               ) : (
-                <View style={[styles.storeMap, styles.mapFallbackContainer]}>
-                  <Ionicons name="map-outline" size={ms(40)} color="#999" style={{ marginBottom: hp(0.5) }} />
-                  <Text style={styles.mapFallbackText}>Native Map Preview Unavailable</Text>
-                  <Text style={styles.mapFallbackDesc}>
-                    Please configure your Google Maps API Key in mobile/app.json to render the inline map.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.mapFallbackButton}
-                    onPress={() => {
-                      triggerHaptic('light');
-                      const lat = 14.5916;
-                      const lng = 120.9734;
-                      const label = 'SwiftStore';
-                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                      const latLng = `${lat},${lng}`;
-                      const url = Platform.select({
-                        ios: `${scheme}${label}@${latLng}`,
-                        android: `${scheme}${latLng}(${label})`
-                      });
-                      Linking.openURL(url);
-                    }}
-                  >
-                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
-                    <Text style={styles.mapFallbackButtonText}>Open in Map App</Text>
-                  </TouchableOpacity>
-                </View>
+                <LeafletMap
+                  latitude={14.5916}
+                  longitude={120.9734}
+                  markerTitle="SwiftStore"
+                  markerDescription="Cabildo St, Intramuros, Manila"
+                  style={styles.storeMap}
+                />
               )}
             </View>
 
