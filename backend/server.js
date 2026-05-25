@@ -301,7 +301,7 @@ app.get('/api/products', cacheMiddleware(300), async (req, res) => {
 app.get('/api/products/categories', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ""'
+            "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != ''"
         );
         const categories = rows.map(r => r.category);
         res.json(categories);
