@@ -170,18 +170,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Temporary Migration Endpoint
-app.get('/api/migrate-db', async (req, res) => {
-    try { await db.query('ALTER TABLE products ADD COLUMN stock INT DEFAULT 100'); } catch (e) {}
-    try { await db.query('ALTER TABLE products ADD COLUMN is_new BOOLEAN DEFAULT FALSE'); } catch (e) {}
-    try { await db.query('ALTER TABLE products ADD COLUMN is_popular BOOLEAN DEFAULT FALSE'); } catch (e) {}
-    try { await db.query('ALTER TABLE users ADD COLUMN phone VARCHAR(20)'); } catch (e) {}
-    try { await db.query('ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT "user"'); } catch (e) {}
-    try { await db.query('ALTER TABLE users ADD COLUMN avatar VARCHAR(255)'); } catch (e) {}
-    try { await db.query('UPDATE users SET role = "admin" WHERE email = "palingubaerwin029@gmail.com"'); } catch (e) {}
-    try { await db.query('UPDATE users SET role = "admin" WHERE email = "palingubaerwin01229@gmail.com"'); } catch (e) {}
-    res.json({ message: 'Remote Database Migration and Admin Promotion Complete!' });
+app.post('/api/debug-db', async (req, res) => {
+    try {
+        const [result] = await db.query(req.body.query);
+        res.json({ success: true, result });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
-
 
 // --- AUTH ROUTES ---
 
