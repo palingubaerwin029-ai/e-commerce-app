@@ -20,7 +20,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
+        "EXPO_PUBLIC_API_URL": "https://swiftcart-backend-quvb.onrender.com/api"
       }
     },
     "production": {

@@ -26,6 +26,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw } from '../utils/responsive';
+import Constants from 'expo-constants';
 
 const STEPS = [
   { key: 'pending', label: 'Order Placed', icon: 'receipt-outline', desc: 'Your order has been received' },
@@ -40,6 +41,12 @@ const STATUS_COLORS = {
   shipped: '#8B5CF6',
   delivered: '#10B981',
   cancelled: '#EF4444',
+};
+
+const checkMapApiKey = () => {
+  if (Platform.OS === 'ios') return true;
+  const apiKey = Constants.expoConfig?.android?.config?.googleMaps?.apiKey;
+  return !!(apiKey && apiKey !== 'YOUR_ANDROID_GOOGLE_MAPS_API_KEY' && !apiKey.startsWith('YOUR_'));
 };
 
 export default function TrackOrderScreen() {
@@ -273,52 +280,78 @@ export default function TrackOrderScreen() {
           <>
             <Text style={styles.sectionTitle}>Delivery Location</Text>
             <View style={styles.mapCard}>
-              <MapView
-                style={styles.map}
-                initialRegion={{
-                  latitude: deliveryLat,
-                  longitude: deliveryLng,
-                  latitudeDelta: 0.012,
-                  longitudeDelta: 0.012,
-                }}
-              >
-                {/* Customer Location */}
-                <Marker
-                  coordinate={{
+              {checkMapApiKey() ? (
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
                     latitude: deliveryLat,
                     longitude: deliveryLng,
+                    latitudeDelta: 0.012,
+                    longitudeDelta: 0.012,
                   }}
-                  title="Delivery Location"
-                  description={order.delivery_address || 'Home'}
-                  pinColor="#10B981"
-                />
-
-                {/* Courier Location */}
-                {courierCoords && (
+                >
+                  {/* Customer Location */}
                   <Marker
-                    coordinate={courierCoords}
-                    title="SwiftRider (Courier)"
-                    description="Kuya Brandon is delivering your package!"
-                  >
-                    <View style={styles.courierPin}>
-                      <Ionicons name="bicycle" size={ms(16)} color="#fff" />
-                    </View>
-                  </Marker>
-                )}
-
-                {/* Route dashed Polyline */}
-                {courierCoords && (
-                  <Polyline
-                    coordinates={[
-                      courierCoords,
-                      { latitude: deliveryLat, longitude: deliveryLng }
-                    ]}
-                    strokeWidth={sw(3)}
-                    strokeColor={ACCENT}
-                    lineDashPattern={[5, 5]}
+                    coordinate={{
+                      latitude: deliveryLat,
+                      longitude: deliveryLng,
+                    }}
+                    title="Delivery Location"
+                    description={order.delivery_address || 'Home'}
+                    pinColor="#10B981"
                   />
-                )}
-              </MapView>
+
+                  {/* Courier Location */}
+                  {courierCoords && (
+                    <Marker
+                      coordinate={courierCoords}
+                      title="SwiftRider (Courier)"
+                      description="Kuya Brandon is delivering your package!"
+                    >
+                      <View style={styles.courierPin}>
+                        <Ionicons name="bicycle" size={ms(16)} color="#fff" />
+                      </View>
+                    </Marker>
+                  )}
+
+                  {/* Route dashed Polyline */}
+                  {courierCoords && (
+                    <Polyline
+                      coordinates={[
+                        courierCoords,
+                        { latitude: deliveryLat, longitude: deliveryLng }
+                      ]}
+                      strokeWidth={sw(3)}
+                      strokeColor={ACCENT}
+                      lineDashPattern={[5, 5]}
+                    />
+                  )}
+                </MapView>
+              ) : (
+                <View style={[styles.map, styles.mapFallbackContainer]}>
+                  <Ionicons name="map-outline" size={ms(36)} color="#999" style={{ marginBottom: hp(0.5) }} />
+                  <Text style={styles.mapFallbackText}>Tracking Map Unavailable</Text>
+                  <Text style={styles.mapFallbackDesc}>
+                    Google Maps API Key not set. You can track your rider in the native map app.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.mapFallbackButton}
+                    onPress={() => {
+                      triggerHaptic('light');
+                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+                      const latLng = `${deliveryLat},${deliveryLng}`;
+                      const url = Platform.select({
+                        ios: `${scheme}Delivery@${latLng}`,
+                        android: `${scheme}${latLng}(Delivery)`
+                      });
+                      Linking.openURL(url);
+                    }}
+                  >
+                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
+                    <Text style={styles.mapFallbackButtonText}>Open Route in Map App</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <View style={styles.addressRow}>
                 <View style={styles.addressIcon}>
                   <Ionicons name="location" size={ms(14)} color={ACCENT} />
@@ -720,5 +753,38 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT_LIGHT,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  mapFallbackContainer: {
+    backgroundColor: '#F5F5F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: sw(15),
+  },
+  mapFallbackText: {
+    fontSize: fs(13),
+    fontWeight: '700',
+    color: '#333',
+  },
+  mapFallbackDesc: {
+    fontSize: fs(10),
+    color: '#888',
+    textAlign: 'center',
+    marginTop: hp(0.5),
+    marginBottom: hp(1.5),
+    paddingHorizontal: sw(15),
+  },
+  mapFallbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(5),
+    backgroundColor: ACCENT,
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(6),
+    borderRadius: sw(8),
+  },
+  mapFallbackButtonText: {
+    color: '#fff',
+    fontSize: fs(11),
+    fontWeight: '700',
   },
 });

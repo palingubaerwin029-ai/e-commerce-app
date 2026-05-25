@@ -29,6 +29,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { triggerHaptic } from '../../utils/haptics';
 import { sendLocalNotification } from '../../utils/notifications';
 import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 
 
 const CARD_GAP = sw(12);
@@ -57,6 +58,12 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const FILTER_TABS = ['All', 'Newest', 'Popular'];
+
+const checkMapApiKey = () => {
+  if (Platform.OS === 'ios') return true;
+  const apiKey = Constants.expoConfig?.android?.config?.googleMaps?.apiKey;
+  return !!(apiKey && apiKey !== 'YOUR_ANDROID_GOOGLE_MAPS_API_KEY' && !apiKey.startsWith('YOUR_'));
+};
 
 export default function HomeScreen() {
   const { 
@@ -311,7 +318,9 @@ export default function HomeScreen() {
               })}
               {coupons.length === 0 && (
                 <View style={[styles.bannerCard, { backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ color: '#999', fontSize: fs(13) }}>Login to see offers</Text>
+                  <Text style={{ color: '#999', fontSize: fs(13) }}>
+                    {user ? 'No active coupons available' : 'Login to see offers'}
+                  </Text>
                 </View>
               )}
             </ScrollView>
@@ -568,22 +577,51 @@ export default function HomeScreen() {
 
             {/* Store Map */}
             <View style={styles.storeMapContainer}>
-              <MapView
-                style={styles.storeMap}
-                initialRegion={{
-                  latitude: 14.5916,
-                  longitude: 120.9734,
-                  latitudeDelta: 0.008,
-                  longitudeDelta: 0.008,
-                }}
-              >
-                <Marker
-                  coordinate={{ latitude: 14.5916, longitude: 120.9734 }}
-                  title="SwiftStore"
-                  description="Cabildo St, Intramuros, Manila"
-                  pinColor={ACCENT}
-                />
-              </MapView>
+              {checkMapApiKey() ? (
+                <MapView
+                  style={styles.storeMap}
+                  initialRegion={{
+                    latitude: 14.5916,
+                    longitude: 120.9734,
+                    latitudeDelta: 0.008,
+                    longitudeDelta: 0.008,
+                  }}
+                >
+                  <Marker
+                    coordinate={{ latitude: 14.5916, longitude: 120.9734 }}
+                    title="SwiftStore"
+                    description="Cabildo St, Intramuros, Manila"
+                    pinColor={ACCENT}
+                  />
+                </MapView>
+              ) : (
+                <View style={[styles.storeMap, styles.mapFallbackContainer]}>
+                  <Ionicons name="map-outline" size={ms(40)} color="#999" style={{ marginBottom: hp(0.5) }} />
+                  <Text style={styles.mapFallbackText}>Native Map Preview Unavailable</Text>
+                  <Text style={styles.mapFallbackDesc}>
+                    Please configure your Google Maps API Key in mobile/app.json to render the inline map.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.mapFallbackButton}
+                    onPress={() => {
+                      triggerHaptic('light');
+                      const lat = 14.5916;
+                      const lng = 120.9734;
+                      const label = 'SwiftStore';
+                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+                      const latLng = `${lat},${lng}`;
+                      const url = Platform.select({
+                        ios: `${scheme}${label}@${latLng}`,
+                        android: `${scheme}${latLng}(${label})`
+                      });
+                      Linking.openURL(url);
+                    }}
+                  >
+                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
+                    <Text style={styles.mapFallbackButtonText}>Open in Map App</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Store Details Card */}
@@ -1060,5 +1098,39 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: fs(14),
     fontWeight: '800',
+  },
+  mapFallbackContainer: {
+    backgroundColor: '#F5F5F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: sw(15),
+    borderRadius: sw(12),
+  },
+  mapFallbackText: {
+    fontSize: fs(13),
+    fontWeight: '700',
+    color: '#333',
+  },
+  mapFallbackDesc: {
+    fontSize: fs(10),
+    color: '#888',
+    textAlign: 'center',
+    marginTop: hp(0.5),
+    marginBottom: hp(1.5),
+    paddingHorizontal: sw(10),
+  },
+  mapFallbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(5),
+    backgroundColor: ACCENT,
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(6),
+    borderRadius: sw(8),
+  },
+  mapFallbackButtonText: {
+    color: '#fff',
+    fontSize: fs(11),
+    fontWeight: '700',
   },
 });

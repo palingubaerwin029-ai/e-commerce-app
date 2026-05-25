@@ -63,3 +63,30 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS coupons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount_percent INT NOT NULL,
+    min_order DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    max_uses INT NOT NULL DEFAULT 100,
+    uses_count INT NOT NULL DEFAULT 0,
+    expires_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_coupons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    coupon_id INT NOT NULL,
+    claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
+);
+
+-- Insert some default coupons
+INSERT IGNORE INTO coupons (code, discount_percent, min_order, max_uses, expires_at) VALUES 
+('SWIFTSAVE10', 10, 100.00, 500, DATE_ADD(NOW(), INTERVAL 30 DAY)),
+('SWIFTWELCOME', 20, 0.00, 1000, DATE_ADD(NOW(), INTERVAL 90 DAY)),
+('DEAL30', 30, 500.00, 200, DATE_ADD(NOW(), INTERVAL 15 DAY));

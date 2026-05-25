@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useCart } from '../context/CartContext';
@@ -13,6 +13,13 @@ import { ACCENT, ACCENT_LIGHT } from '../constants/theme';
 import { wp, hp, ms, fs, sw } from '../utils/responsive';
 import { triggerHaptic } from '../utils/haptics';
 import { sendLocalNotification } from '../utils/notifications';
+import Constants from 'expo-constants';
+
+const checkMapApiKey = () => {
+  if (Platform.OS === 'ios') return true;
+  const apiKey = Constants.expoConfig?.android?.config?.googleMaps?.apiKey;
+  return !!(apiKey && apiKey !== 'YOUR_ANDROID_GOOGLE_MAPS_API_KEY' && !apiKey.startsWith('YOUR_'));
+};
 
 export default function CheckoutScreen() {
   const { cartItems, clearCart } = useCart();
@@ -374,17 +381,53 @@ export default function CheckoutScreen() {
             </TouchableOpacity>
           ) : (
             <>
-              <MapView style={styles.map} initialRegion={{ ...deliveryLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }} onPress={handleMapPress}>
-                <Marker coordinate={deliveryLocation} title="Delivery Location" description={address} pinColor={ACCENT} />
-              </MapView>
-              <View style={styles.addressRow}>
-                <Ionicons name="location" size={ms(16)} color={ACCENT} />
-                <Text style={styles.addressText} numberOfLines={2}>{address || 'Loading...'}</Text>
+              {checkMapApiKey() ? (
+                <MapView style={styles.map} initialRegion={{ ...deliveryLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }} onPress={handleMapPress}>
+                  <Marker coordinate={deliveryLocation} title="Delivery Location" description={address} pinColor={ACCENT} />
+                </MapView>
+              ) : (
+                <View style={[styles.map, styles.mapFallbackContainer]}>
+                  <Ionicons name="map-outline" size={ms(36)} color="#999" style={{ marginBottom: hp(0.5) }} />
+                  <Text style={styles.mapFallbackText}>Interactive Map Unavailable</Text>
+                  <Text style={styles.mapFallbackDesc}>
+                    Google Maps API Key not set. You can manually enter your address details below.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.mapFallbackButton}
+                    onPress={() => {
+                      triggerHaptic('light');
+                      const lat = deliveryLocation.latitude;
+                      const lng = deliveryLocation.longitude;
+                      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+                      const latLng = `${lat},${lng}`;
+                      const url = Platform.select({
+                        ios: `${scheme}Delivery@${latLng}`,
+                        android: `${scheme}${latLng}(Delivery)`
+                      });
+                      Linking.openURL(url);
+                    }}
+                  >
+                    <Ionicons name="open-outline" size={ms(14)} color="#fff" />
+                    <Text style={styles.mapFallbackButtonText}>Check coordinates in Map App</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={styles.addressInputContainer}>
+                <Ionicons name="location" size={ms(16)} color={ACCENT} style={{ marginTop: hp(1.2) }} />
+                <TextInput
+                  style={styles.addressTextInput}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="Enter detailed delivery address"
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={2}
+                />
               </View>
               <TouchableOpacity style={styles.changeLocationBtn} onPress={getLocation}>
                 <Text style={styles.changeLocationText}>📍 Re-detect my location</Text>
               </TouchableOpacity>
-              <Text style={styles.mapHint}>Tap the map to adjust your delivery pin</Text>
+              {checkMapApiKey() && <Text style={styles.mapHint}>Tap the map to adjust your delivery pin</Text>}
             </>
           )}
         </View>
@@ -742,6 +785,58 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: hp(24), borderRadius: sw(12), marginBottom: hp(1.5) },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: hp(1) },
   addressText: { fontSize: fs(13), marginLeft: sw(6), flex: 1, lineHeight: fs(20), color: '#333' },
+  addressInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: hp(1),
+    backgroundColor: '#F5F5F5',
+    borderRadius: sw(12),
+    paddingHorizontal: sw(12),
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+  },
+  addressTextInput: {
+    flex: 1,
+    fontSize: fs(13),
+    marginLeft: sw(6),
+    color: '#333',
+    minHeight: hp(6),
+    textAlignVertical: 'top',
+    paddingVertical: hp(0.8),
+  },
+  mapFallbackContainer: {
+    backgroundColor: '#F5F5F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: sw(15),
+  },
+  mapFallbackText: {
+    fontSize: fs(13),
+    fontWeight: '700',
+    color: '#333',
+  },
+  mapFallbackDesc: {
+    fontSize: fs(10),
+    color: '#888',
+    textAlign: 'center',
+    marginTop: hp(0.5),
+    marginBottom: hp(1.5),
+    paddingHorizontal: sw(15),
+  },
+  mapFallbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(5),
+    backgroundColor: ACCENT,
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(6),
+    borderRadius: sw(8),
+  },
+  mapFallbackButtonText: {
+    color: '#fff',
+    fontSize: fs(11),
+    fontWeight: '700',
+  },
   changeLocationBtn: { alignItems: 'center', paddingVertical: hp(1) },
   changeLocationText: { color: ACCENT, fontSize: fs(12), fontWeight: '500' },
   mapHint: { fontSize: fs(11), textAlign: 'center', marginTop: hp(0.5), color: '#999' },
