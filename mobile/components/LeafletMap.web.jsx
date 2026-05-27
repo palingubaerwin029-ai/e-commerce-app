@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 
 export default function LeafletMap({
   latitude,
@@ -146,13 +145,12 @@ export default function LeafletMap({
               ]);
             }
             
-            // Post message to React Native WebView
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                latitude: e.latlng.lat,
-                longitude: e.latlng.lng
-              }));
-            }
+            // Post message to web parent
+            window.parent.postMessage(JSON.stringify({
+              type: 'MAP_TAP',
+              latitude: e.latlng.lat,
+              longitude: e.latlng.lng
+            }), '*');
           });
         ` : ''}
       </script>
@@ -160,25 +158,31 @@ export default function LeafletMap({
     </html>
   `;
 
+  // Message listener for Web Platform
+  useEffect(() => {
+    if (!onPress) return;
+
+    const handleWebMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.type === 'MAP_TAP') {
+          onPress({ latitude: data.latitude, longitude: data.longitude });
+        }
+      } catch {
+        // Ignore other/external iframe postMessages
+      }
+    };
+
+    window.addEventListener('message', handleWebMessage);
+    return () => window.removeEventListener('message', handleWebMessage);
+  }, [onPress]);
+
   return (
     <View style={[styles.container, style]}>
-      <WebView
-        originWhitelist={['*']}
-        source={{ html: mapHtml, baseUrl: 'https://localhost' }}
-        style={styles.webview}
-        onMessage={(event) => {
-          if (onPress) {
-            try {
-              const coords = JSON.parse(event.nativeEvent.data);
-              onPress(coords);
-            } catch (err) {
-              console.error('Leaflet message error:', err);
-            }
-          }
-        }}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        mixedContentMode="always"
+      <iframe
+        srcDoc={mapHtml}
+        style={styles.iframe}
+        title="Leaflet Map"
       />
     </View>
   );
@@ -189,10 +193,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#f5f5f7',
   },
-  webview: {
-    flex: 1,
+  iframe: {
     width: '100%',
     height: '100%',
+    border: 'none',
     backgroundColor: 'transparent',
   }
 });

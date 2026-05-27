@@ -169,15 +169,7 @@ app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Temporary Migration Endpoint
-app.post('/api/debug-db', async (req, res) => {
-    try {
-        const [result] = await db.query(req.body.query);
-        res.json({ success: true, result });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
+
 
 // --- AUTH ROUTES ---
 

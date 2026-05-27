@@ -2,6 +2,93 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAllOrders, updateOrderStatus } from '../services/api';
 import { Package, Clock, CheckCircle, Truck, ShoppingBag, Eye } from 'lucide-react';
 
+const getMapHtml = (lat, lng, address, status) => {
+  const safeLat = parseFloat(lat) || 14.5916;
+  const safeLng = parseFloat(lng) || 120.9734;
+  const hasCourier = ['processing', 'shipped'].includes(status);
+  const courierLat = safeLat + 0.003;
+  const courierLng = safeLng + 0.003;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        html, body, #map {
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          background-color: #f8fafc;
+        }
+        .custom-marker {
+          background: transparent !important;
+          border: none !important;
+        }
+        .leaflet-popup-content-wrapper {
+          background: #1e293b;
+          color: #ffffff;
+          border-radius: 8px;
+          padding: 2px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+          margin: 8px 12px;
+          font-size: 12px;
+          font-family: sans-serif;
+        }
+        .leaflet-popup-content b {
+          color: #ef4444;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .leaflet-popup-tip {
+          background: #1e293b;
+        }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var map = L.map('map', {
+          zoomControl: true,
+          attributionControl: false
+        }).setView([${safeLat}, ${safeLng}], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19
+        }).addTo(map);
+
+        var destSvg = '<svg width="24" height="34" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.625C11.8934 20.625 9.375 18.1066 9.375 15C9.375 11.8934 11.8934 9.375 15 9.375C18.1066 9.375 20.625 11.8934 20.625 15C20.625 18.1066 18.1066 20.625 15 20.625Z" fill="#ef4444"/></svg>';
+        var courierSvg = '<svg width="24" height="34" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.625C11.8934 20.625 9.375 18.1066 9.375 15C9.375 11.8934 11.8934 9.375 15 9.375C18.1066 9.375 20.625 11.8934 20.625 15C20.625 18.1066 18.1066 20.625 15 20.625Z" fill="#3b82f6"/></svg>';
+
+        var destIcon = L.divIcon({ html: destSvg, className: 'custom-marker', iconSize: [24, 34], iconAnchor: [12, 34], popupAnchor: [0, -30] });
+        var courierIcon = L.divIcon({ html: courierSvg, className: 'custom-marker', iconSize: [24, 34], iconAnchor: [12, 34], popupAnchor: [0, -30] });
+
+        var destMarker = L.marker([${safeLat}, ${safeLng}], { icon: destIcon }).addTo(map);
+        destMarker.bindPopup("<b>Delivery Location</b>${address ? address.replace(/"/g, '&quot;') : 'Home'}").openPopup();
+
+        if (${hasCourier}) {
+          var courierMarker = L.marker([${courierLat}, ${courierLng}], { icon: courierIcon }).addTo(map);
+          courierMarker.bindPopup("<b>Courier Rider</b>Heading to destination").openPopup();
+
+          var group = new L.featureGroup([destMarker, courierMarker]);
+          map.fitBounds(group.getBounds().pad(0.2));
+
+          L.polyline([[${courierLat}, ${courierLng}], [${safeLat}, ${safeLng}]], {
+            color: '#ef4444',
+            weight: 3,
+            dashArray: '4, 6'
+          }).addTo(map);
+        }
+      </script>
+    </body>
+    </html>
+  `;
+};
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -214,15 +301,26 @@ const Orders = () => {
                                     </div>
                                   </div>
 
-                                  {/* Delivery information */}
+                                  {/* Delivery information & Map */}
                                   {(order.delivery_address || order.delivery_lat) && (
-                                    <div style={{ borderTop: '1px dashed #f1f5f9', paddingTop: '0.5rem', fontSize: '0.8rem', color: '#475569', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                                      <span style={{ fontWeight: 600 }}>Delivery address:</span>
-                                      <span style={{ marginLeft: '0.25rem' }}>{order.delivery_address || 'Cabildo St, Intramuros, Manila'}</span>
+                                    <div style={{ borderTop: '1px dashed #f1f5f9', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                      <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                        <span style={{ fontWeight: 600 }}>Delivery address:</span>
+                                        <span style={{ marginLeft: '0.25rem' }}>{order.delivery_address || 'Cabildo St, Intramuros, Manila'}</span>
+                                        {order.delivery_lat && (
+                                          <span style={{ color: '#94a3b8', marginLeft: '0.75rem', fontWeight: 500 }}>
+                                            ({parseFloat(order.delivery_lat).toFixed(4)}, {parseFloat(order.delivery_lng).toFixed(4)})
+                                          </span>
+                                        )}
+                                      </div>
                                       {order.delivery_lat && (
-                                        <span style={{ color: '#94a3b8', marginLeft: '0.75rem', fontWeight: 500 }}>
-                                          ({parseFloat(order.delivery_lat).toFixed(4)}, {parseFloat(order.delivery_lng).toFixed(4)})
-                                        </span>
+                                        <div style={{ width: '100%', height: '180px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                          <iframe
+                                            srcDoc={getMapHtml(order.delivery_lat, order.delivery_lng, order.delivery_address, order.status)}
+                                            style={{ width: '100%', height: '100%', border: 'none' }}
+                                            title={`Map Order ${order.id}`}
+                                          />
+                                        </div>
                                       )}
                                     </div>
                                   )}
