@@ -164,7 +164,7 @@ export default function LeafletMap({
     <View style={[styles.container, style]}>
       <WebView
         originWhitelist={['*']}
-        source={{ html: mapHtml, baseUrl: 'https://localhost' }}
+        source={{ html: mapHtml }}
         style={styles.webview}
         onMessage={(event) => {
           if (onPress) {
