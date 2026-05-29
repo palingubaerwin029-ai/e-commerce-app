@@ -22,9 +22,10 @@ This application implements **five independent native hardware features**, satis
 2. **Native Push Notifications (`expo-notifications`)** 🔔:
    * Triggers native on-device local push banners when order confirmation succeeds (detailing order total and payment route).
    * Fires instant alert cards when claiming promotional coupon codes.
-3. **Interactive Maps (`react-native-maps`)** 🗺️:
+3. **Interactive Maps (`react-native-maps` & Leaflet)** 🗺️:
    * Embedded interactive map in checkout lets users drag-and-drop a marker pin to select their exact shipping location.
    * Renders real-time visual route mapping inside active order detail pages.
+   * Includes a robust **LeafletMap** cross-platform fallback via WebView for mobile and React-DOM for web, ensuring maps render perfectly without requiring Google Maps API keys.
 4. **GPS Geocoding (`expo-location`)** 📍:
    * Automatically requests GPS permissions, detects latitude/longitude coordinates, and performs **reverse-geocoding** to map coordinates into physical text addresses.
 5. **Camera & Photo Picker (`expo-image-picker`)** 📷:
