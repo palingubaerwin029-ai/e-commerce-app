@@ -4,8 +4,7 @@
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB.svg?style=flat-square&logo=react&logoColor=white)](https://reactnative.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.21-000000.svg?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
-[![SQLite/PostgreSQL](https://img.shields.io/badge/Database-SQLite%20%2F%20PostgreSQL-4479A1.svg?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![MySQL](https://img.shields.io/badge/Database-SQL-4479A1.svg?style=flat-square&logo=mysql&logoColor=white)](https://www.mysql.com/)
 
 **SwiftCart** is a state-of-the-art, feature-complete, production-ready full-stack e-commerce mobile application. It features a stunning, premium Coral-Red brand identity, dynamic pixel-perfect layouts, client-side response caching, and extensive integrations with native smartphone hardware.
 
@@ -63,7 +62,7 @@ final-project/
 │
 ├── backend/           # Node.js + Express REST API Server
 │   ├── server.js      # Main server routing controllers
-│   ├── db.js          # SQLite / database wrapper configs
+│   ├── db.js          # MySQL / database wrapper configs
 │   ├── schema.sql     # Base relational table schema & seeds
 │   └── migration-add-delivery-location.sql   # GPS coordinate tables
 ```
@@ -131,20 +130,13 @@ mysql -u root -p ecommerce_db < backend/migration-add-delivery-location.sql
 
 ## ☁️ Standalone Cloud Compilation & Deployment
 
-### Backend Server Deployment (Vercel)
-1. Install the Vercel CLI globally:
-   ```bash
-   npm install -g vercel
-   ```
-2. Navigate to the backend folder and deploy:
-   ```bash
-   cd backend
-   vercel
-   ```
-3. Set your environment variables (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`) in your Vercel project settings dashboard, and trigger production release:
-   ```bash
-   vercel --prod
-   ```
+### Backend Server Deployment (Render)
+1. Create a new **Web Service** on [Render](https://render.com/).
+2. Connect your GitHub repository and set the **Root Directory** to `backend`.
+3. Configure the Web Service:
+   * **Build Command**: `npm install`
+   * **Start Command**: `npm start` (ensure `"start": "node server.js"` is in your `package.json`)
+4. Add your environment variables (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`) in the Render Environment tab and Deploy.
 
 ### Mobile App Deployment (EAS Cloud Build APK)
 Instead of installing complex local Java JDK or Android Studio environments, compile your standalone native Android APK in the cloud for free using **Expo Application Services (EAS)**:
@@ -158,7 +150,7 @@ Instead of installing complex local Java JDK or Android Studio environments, com
 3. Configure `mobile/app.json` with your backend server's deployed URL:
    ```json
    "extra": {
-     "EXPO_PUBLIC_API_URL": "https://your-backend.vercel.app/api"
+     "EXPO_PUBLIC_API_URL": "https://your-backend.onrender.com/api"
    }
    ```
 4. Run the EAS Android APK compiler in the cloud:
